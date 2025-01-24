@@ -56,7 +56,7 @@ Lembre-se de manter o equilíbrio entre profundidade teórica e aplicabilidade p
         ]
         
         payload = {
-            "model": "gpt-4",
+            "model": "gpt-4o-mini-2024-07-18",
             "messages": messages,
             "temperature": 0.9,
             "max_tokens": 800,
