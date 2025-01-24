@@ -1,6 +1,3 @@
 ffmpeg
-libsndfile1
-build-essential
 python3-dev
-rustc
-cargo
+build-essential
