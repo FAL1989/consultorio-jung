@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import type { Message } from '@/types/chat';
+import type { Dispatch, SetStateAction } from 'react';
 
 interface ChatHookReturn {
   messages: Message[];
   currentMessage: string;
-  setCurrentMessage: (message: string) => void;
+  setCurrentMessage: Dispatch<SetStateAction<string>>;
   isLoading: boolean;
   handleSend: () => Promise<void>;
   clearChat: () => void;

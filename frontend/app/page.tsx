@@ -5,6 +5,7 @@ import { ChatHistory } from "@/components/ChatHistory";
 import { MessageInput } from "@/components/MessageInput";
 import { useChat } from "@/lib/hooks/useChat";
 import { useAuth } from "@/lib/hooks/useAuth";
+import type { Dispatch, SetStateAction } from "react";
 
 export default function ChatPage(): JSX.Element {
   const { session, signIn } = useAuth();
@@ -46,7 +47,9 @@ export default function ChatPage(): JSX.Element {
           
           <div className="border-t pt-4">
             <AudioRecorder 
-              onTranscription={(text: string) => setCurrentMessage((prev: string) => prev + " " + text)}
+              onTranscription={(text: string) => {
+                setCurrentMessage((prev: string) => prev + " " + text.trim());
+              }}
             />
             
             <MessageInput
