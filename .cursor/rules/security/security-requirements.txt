@@ -1,0 +1,387 @@
+Pattern: **/*
+Description: Security requirements and best practices for the entire project
+
+Security Guidelines:
+
+1. Authentication & Authorization:
+```typescript
+// Middleware de autenticação
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export async function middleware(req: NextRequest) {
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  // Verifica autenticação
+  if (!session) {
+    return NextResponse.redirect(new URL('/auth/login', req.url));
+  }
+
+  // Verifica permissões específicas
+  if (req.nextUrl.pathname.startsWith('/admin')) {
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (!roles || roles.role !== 'admin') {
+      return NextResponse.redirect(new URL('/unauthorized', req.url));
+    }
+  }
+
+  return res;
+}
+```
+
+2. Input Validation:
+```typescript
+import { z } from 'zod';
+
+// Schema de validação
+const UserInputSchema = z.object({
+  message: z.string()
+    .min(1, 'Mensagem não pode estar vazia')
+    .max(1000, 'Mensagem muito longa')
+    .transform(str => str.trim()),
+  audioFile: z.instanceof(File)
+    .refine(file => file.size <= 10 * 1024 * 1024, 'Arquivo muito grande')
+    .refine(
+      file => ['audio/webm', 'audio/mp3', 'audio/wav'].includes(file.type),
+      'Formato de áudio não suportado'
+    )
+    .optional(),
+});
+
+// Função de validação
+export async function validateUserInput(input: unknown) {
+  try {
+    const validatedData = await UserInputSchema.parseAsync(input);
+    return {
+      success: true,
+      data: validatedData
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        errors: error.errors.map(e => ({
+          path: e.path.join('.'),
+          message: e.message
+        }))
+      };
+    }
+    throw error;
+  }
+}
+```
+
+3. XSS Prevention:
+```typescript
+import DOMPurify from 'dompurify';
+
+// Sanitização de HTML
+export function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a'],
+    ALLOWED_ATTR: ['href', 'title', 'target'],
+  });
+}
+
+// Componente seguro para renderizar HTML
+export function SafeHtml({ html }: { html: string }) {
+  return (
+    <div
+      dangerouslySetInnerHTML={{
+        __html: sanitizeHtml(html)
+      }}
+    />
+  );
+}
+```
+
+4. API Security:
+```typescript
+import { rateLimit } from '@/lib/rate-limit';
+import { validateToken } from '@/lib/auth';
+
+// Middleware de segurança para API
+export async function secureApiRoute(
+  req: NextRequest,
+  handler: (req: NextRequest) => Promise<NextResponse>
+): Promise<NextResponse> {
+  try {
+    // Rate limiting
+    const rateLimitResult = await rateLimit.check(req);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429 }
+      );
+    }
+
+    // CSRF protection
+    const csrfToken = req.headers.get('x-csrf-token');
+    if (!csrfToken || !validateToken(csrfToken)) {
+      return NextResponse.json(
+        { error: 'Invalid CSRF token' },
+        { status: 403 }
+      );
+    }
+
+    // Content Security Policy
+    const response = await handler(req);
+    response.headers.set(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    );
+
+    return response;
+  } catch (error) {
+    console.error('API Security Error:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+5. Sensitive Data Handling:
+```typescript
+// Classe para manipulação segura de dados sensíveis
+class SecureDataHandler {
+  private static readonly SENSITIVE_FIELDS = ['password', 'token', 'key'];
+
+  // Mascara dados sensíveis em logs
+  static maskSensitiveData(data: any): any {
+    if (typeof data !== 'object' || data === null) {
+      return data;
+    }
+
+    const masked = { ...data };
+    for (const field of this.SENSITIVE_FIELDS) {
+      if (field in masked) {
+        masked[field] = '********';
+      }
+    }
+
+    return masked;
+  }
+
+  // Remove dados sensíveis antes de enviar ao cliente
+  static sanitizeResponseData(data: any): any {
+    if (typeof data !== 'object' || data === null) {
+      return data;
+    }
+
+    const sanitized = { ...data };
+    for (const field of this.SENSITIVE_FIELDS) {
+      delete sanitized[field];
+    }
+
+    return sanitized;
+  }
+}
+```
+
+6. File Upload Security:
+```typescript
+// Validação de uploads de arquivo
+export const fileUploadConfig = {
+  maxSize: 10 * 1024 * 1024, // 10MB
+  allowedTypes: ['audio/webm', 'audio/mp3', 'audio/wav'],
+  storage: {
+    path: '/tmp',
+    prefix: 'upload-',
+    cleanup: true,
+  },
+};
+
+export async function validateFileUpload(file: File): Promise<boolean> {
+  // Verifica tamanho
+  if (file.size > fileUploadConfig.maxSize) {
+    throw new Error('File too large');
+  }
+
+  // Verifica tipo
+  if (!fileUploadConfig.allowedTypes.includes(file.type)) {
+    throw new Error('Invalid file type');
+  }
+
+  // Verifica conteúdo real do arquivo
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const fileType = await FileType.fromBuffer(buffer);
+  
+  if (!fileType || !fileUploadConfig.allowedTypes.includes(fileType.mime)) {
+    throw new Error('Invalid file content');
+  }
+
+  return true;
+}
+```
+
+7. Error Handling:
+```typescript
+// Classe de erro personalizada
+export class AppError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number = 500,
+    public readonly details?: any
+  ) {
+    super(message);
+    this.name = 'AppError';
+  }
+
+  // Sanitiza detalhes do erro para resposta
+  public toResponse() {
+    return {
+      error: {
+        code: this.code,
+        message: this.message,
+        ...(process.env.NODE_ENV === 'development' && {
+          details: this.details
+        })
+      }
+    };
+  }
+}
+
+// Handler global de erros
+export function errorHandler(error: unknown) {
+  if (error instanceof AppError) {
+    return NextResponse.json(
+      error.toResponse(),
+      { status: error.status }
+    );
+  }
+
+  console.error('Unhandled Error:', error);
+  return NextResponse.json(
+    { error: 'Internal Server Error' },
+    { status: 500 }
+  );
+}
+```
+
+8. Security Headers:
+```typescript
+// Middleware para headers de segurança
+export function securityHeaders(
+  req: NextRequest,
+  res: NextResponse
+): NextResponse {
+  // HSTS
+  res.headers.set(
+    'Strict-Transport-Security',
+    'max-age=31536000; includeSubDomains'
+  );
+
+  // Prevent clickjacking
+  res.headers.set('X-Frame-Options', 'DENY');
+
+  // XSS protection
+  res.headers.set('X-XSS-Protection', '1; mode=block');
+
+  // Prevent MIME type sniffing
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // Referrer policy
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Permissions policy
+  res.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(self), geolocation=()'
+  );
+
+  return res;
+}
+```
+
+9. Audit Logging:
+```typescript
+// Sistema de logging de auditoria
+interface AuditLog {
+  userId: string;
+  action: string;
+  resource: string;
+  details: any;
+  timestamp: Date;
+  ip: string;
+}
+
+class AuditLogger {
+  static async log(data: Omit<AuditLog, 'timestamp'>): Promise<void> {
+    const log: AuditLog = {
+      ...data,
+      timestamp: new Date(),
+    };
+
+    // Log para Supabase
+    await supabase
+      .from('audit_logs')
+      .insert([log]);
+
+    // Log para monitoramento
+    console.info('Audit Log:', SecureDataHandler.maskSensitiveData(log));
+  }
+
+  static async query(filters: Partial<AuditLog>): Promise<AuditLog[]> {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .match(filters);
+
+    if (error) throw error;
+    return data;
+  }
+}
+```
+
+10. Security Monitoring:
+```typescript
+// Sistema de monitoramento de segurança
+class SecurityMonitor {
+  private static readonly ALERT_THRESHOLD = 5;
+  private static failedAttempts = new Map<string, number>();
+
+  static async trackFailedAttempt(ip: string): Promise<void> {
+    const attempts = (this.failedAttempts.get(ip) || 0) + 1;
+    this.failedAttempts.set(ip, attempts);
+
+    if (attempts >= this.ALERT_THRESHOLD) {
+      await this.raiseSecurityAlert({
+        type: 'BRUTE_FORCE_ATTEMPT',
+        ip,
+        attempts,
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  private static async raiseSecurityAlert(alert: SecurityAlert): Promise<void> {
+    // Log alert
+    await AuditLogger.log({
+      userId: 'SYSTEM',
+      action: 'SECURITY_ALERT',
+      resource: 'security_monitoring',
+      details: alert,
+      ip: alert.ip,
+    });
+
+    // Notify security team
+    // Implement notification logic here
+  }
+}
+```
+
+These security guidelines should be strictly followed across the project. Regular security audits and penetration testing are recommended to ensure compliance and identify potential vulnerabilities. 

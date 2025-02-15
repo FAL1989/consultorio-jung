@@ -1,0 +1,220 @@
+Pattern: **/*.test.ts, **/*.test.tsx, **/*.spec.ts, **/*.spec.tsx
+Description: Rules for testing implementation across the project
+
+Testing Guidelines:
+
+1. Test File Structure:
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { mockDeep } from 'jest-mock-extended';
+
+describe('ComponentName or ServiceName', () => {
+  // Setup and teardown
+  beforeEach(() => {
+    // Setup test environment
+  });
+
+  afterEach(() => {
+    // Clean up test environment
+  });
+
+  describe('Functionality Group', () => {
+    it('should perform specific action', async () => {
+      // Arrange
+      const props = {
+        // Test props
+      };
+
+      // Act
+      const result = await someAction();
+
+      // Assert
+      expect(result).toBe(expectedValue);
+    });
+  });
+});
+```
+
+2. Component Testing:
+```typescript
+describe('AudioRecorder', () => {
+  const mockOnTranscription = vi.fn();
+
+  beforeEach(() => {
+    // Mock browser APIs
+    global.MediaRecorder = vi.fn().mockImplementation(() => ({
+      start: vi.fn(),
+      stop: vi.fn(),
+      ondataavailable: vi.fn(),
+      onstop: vi.fn(),
+    }));
+  });
+
+  it('should start recording when button is clicked', () => {
+    render(<AudioRecorder onTranscription={mockOnTranscription} />);
+    
+    const recordButton = screen.getByRole('button', { name: /gravar/i });
+    fireEvent.click(recordButton);
+
+    expect(MediaRecorder.prototype.start).toHaveBeenCalled();
+  });
+});
+```
+
+3. API Testing:
+```typescript
+describe('Transcribe API', () => {
+  const mockOpenAI = mockDeep<OpenAIApi>();
+
+  beforeEach(() => {
+    // Mock OpenAI client
+    vi.mock('openai', () => ({
+      Configuration: vi.fn(),
+      OpenAIApi: vi.fn(() => mockOpenAI),
+    }));
+  });
+
+  it('should handle audio transcription', async () => {
+    // Mock FormData
+    const mockFormData = new FormData();
+    const mockFile = new File(['audio content'], 'test.webm', {
+      type: 'audio/webm',
+    });
+    mockFormData.append('audio', mockFile);
+
+    // Mock OpenAI response
+    mockOpenAI.createTranscription.mockResolvedValueOnce({
+      data: { text: 'Transcribed text' },
+    });
+
+    const response = await POST(new Request('http://localhost', {
+      method: 'POST',
+      body: mockFormData,
+    }));
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.transcript).toBe('Transcribed text');
+  });
+});
+```
+
+4. Test Categories:
+
+a) Unit Tests:
+- Test individual components
+- Test utility functions
+- Test hooks
+- Test state management
+- Test error handling
+
+b) Integration Tests:
+- Test component interactions
+- Test API integrations
+- Test authentication flows
+- Test form submissions
+- Test data flow
+
+c) E2E Tests:
+- Test user journeys
+- Test critical paths
+- Test error scenarios
+- Test performance
+- Test accessibility
+
+5. Testing Best Practices:
+
+a) Arrange-Act-Assert Pattern:
+```typescript
+it('should handle user input', () => {
+  // Arrange
+  const initialState = { value: '' };
+  const { result } = renderHook(() => useState(initialState));
+
+  // Act
+  act(() => {
+    result.current[1]({ value: 'new value' });
+  });
+
+  // Assert
+  expect(result.current[0]).toEqual({ value: 'new value' });
+});
+```
+
+b) Mock External Dependencies:
+```typescript
+vi.mock('@/lib/openai', () => ({
+  transcribeAudio: vi.fn().mockResolvedValue('transcribed text'),
+}));
+```
+
+c) Test Error Scenarios:
+```typescript
+it('should handle API errors', async () => {
+  // Mock API error
+  mockApi.someEndpoint.mockRejectedValueOnce(new Error('API Error'));
+
+  // Render component
+  render(<YourComponent />);
+
+  // Trigger action
+  fireEvent.click(screen.getByRole('button'));
+
+  // Assert error handling
+  expect(await screen.findByText(/erro/i)).toBeInTheDocument();
+});
+```
+
+6. Performance Testing:
+```typescript
+import { performance } from 'perf_hooks';
+
+describe('Performance Tests', () => {
+  it('should process audio within time limit', async () => {
+    const start = performance.now();
+    
+    // Perform operation
+    await processAudio(mockAudioData);
+    
+    const end = performance.now();
+    const duration = end - start;
+    
+    expect(duration).toBeLessThan(1000); // Should complete within 1 second
+  });
+});
+```
+
+7. Accessibility Testing:
+```typescript
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
+
+it('should have no accessibility violations', async () => {
+  const { container } = render(<YourComponent />);
+  const results = await axe(container);
+  expect(results).toHaveNoViolations();
+});
+```
+
+8. Coverage Requirements:
+- Minimum 80% overall coverage
+- 100% coverage for critical paths
+- 90% coverage for components
+- 85% coverage for utilities
+- 95% coverage for API routes
+
+9. Testing Environment:
+- Use Vitest for unit/integration tests
+- Use Playwright for E2E tests
+- Use MSW for API mocking
+- Use Testing Library for component tests
+- Use Jest Axe for accessibility tests
+
+10. CI/CD Integration:
+- Run tests on every PR
+- Block merges on test failures
+- Generate coverage reports
+- Run performance tests
+- Run security scans 

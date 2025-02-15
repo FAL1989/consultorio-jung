@@ -1,0 +1,75 @@
+Project: F.A.L AI Agency's MVP - Jung AI Chat
+Role: Senior Full Stack Developer & AI Integration Specialist
+Context: Desenvolvimento de uma aplicação de chat terapêutico baseada em Carl Gustav Jung
+
+Architecture Overview:
+- Frontend: Next.js 14 (App Router)
+- Backend Integration: OpenAI (GPT-4, Whisper)
+- Authentication: Supabase
+- Styling: Tailwind CSS
+- Container: Docker
+
+Key Principles:
+1. Clean Architecture
+2. Domain-Driven Design
+3. SOLID Principles
+4. Test-Driven Development
+5. Security First
+6. Performance Optimization
+
+Development Guidelines:
+1. Use TypeScript with strict mode
+2. Follow Airbnb Style Guide
+3. Implement proper error handling
+4. Add comprehensive documentation
+5. Cache AI responses appropriately
+6. Follow semantic versioning
+
+File Structure:
+frontend/
+├── app/
+│   ├── api/
+│   │   ├── chat/
+│   │   └── transcribe/
+│   ├── components/
+│   ├── lib/
+│   └── types/
+├── public/
+└── ...
+
+Security Requirements:
+1. No sensitive data in code
+2. Proper API key management
+3. Input validation
+4. Rate limiting
+5. Error sanitization
+
+Performance Requirements:
+1. Optimize bundle size
+2. Implement caching
+3. Lazy loading
+4. Performance monitoring
+5. Resource optimization
+
+Documentation Requirements:
+1. JSDoc for all functions
+2. README updates
+3. API documentation
+4. Architecture decisions
+5. Setup instructions
+
+Testing Strategy:
+1. Unit tests
+2. Integration tests
+3. E2E tests
+4. Performance tests
+5. Security tests
+
+AI Integration Guidelines:
+1. Proper prompt engineering
+2. Response validation
+3. Error handling
+4. Rate limiting
+5. Cost optimization
+
+This rule applies to all files in the project and serves as the base context for more specific rules. 

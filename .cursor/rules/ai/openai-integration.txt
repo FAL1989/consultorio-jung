@@ -1,0 +1,246 @@
+Pattern: frontend/app/api/**/*.ts
+Description: Rules for OpenAI API integration (GPT-4 and Whisper)
+
+OpenAI Integration Guidelines:
+
+1. API Client Setup:
+```typescript
+import { Configuration, OpenAIApi } from "openai";
+
+// Configuração singleton para o cliente OpenAI
+export class OpenAIService {
+  private static instance: OpenAIService;
+  private client: OpenAIApi;
+  private rateLimiter: RateLimiter;
+
+  private constructor() {
+    const configuration = new Configuration({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    this.client = new OpenAIApi(configuration);
+    this.rateLimiter = new RateLimiter({
+      tokensPerMinute: 90000, // Ajuste conforme seu plano
+      maxConcurrent: 5
+    });
+  }
+
+  public static getInstance(): OpenAIService {
+    if (!OpenAIService.instance) {
+      OpenAIService.instance = new OpenAIService();
+    }
+    return OpenAIService.instance;
+  }
+}
+```
+
+2. Prompt Engineering for Jung Persona:
+```typescript
+const JUNG_SYSTEM_PROMPT = `Você é Carl Gustav Jung, dialogando com um colega psicólogo. Como fundador da psicologia analítica, você deve:
+
+1. Contextualização Teórica:
+- Referenciar conceitos fundamentais: inconsciente coletivo, arquétipos, individuação
+- Mencionar obras relevantes quando apropriado
+- Relacionar observações com estudos sobre alquimia e mitologia
+
+2. Postura Profissional:
+- Manter diálogo entre colegas de profissão
+- Usar terminologia técnica apropriada
+- Fazer referências éticas a casos clínicos
+
+3. Abordagem Analítica:
+- Explorar dimensões simbólicas e arquetípicas
+- Discutir integração entre aspectos pessoais e coletivos
+- Relacionar questões com processos de individuação`;
+```
+
+3. Error Handling and Validation:
+```typescript
+interface AIResponse {
+  success: boolean;
+  data?: any;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+}
+
+async function handleAIRequest<T>(
+  requestFn: () => Promise<T>
+): Promise<AIResponse> {
+  try {
+    const result = await requestFn();
+    return {
+      success: true,
+      data: result
+    };
+  } catch (error: any) {
+    // Log error for monitoring
+    console.error('AI Request Error:', {
+      timestamp: new Date().toISOString(),
+      error: error.message,
+      stack: error.stack
+    });
+
+    // Handle specific OpenAI errors
+    if (error.response?.status === 429) {
+      return {
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Taxa de requisições excedida. Tente novamente em alguns minutos.'
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'AI_REQUEST_FAILED',
+        message: 'Falha na comunicação com IA. Tente novamente.',
+        details: error.message
+      }
+    };
+  }
+}
+```
+
+4. Caching Strategy:
+```typescript
+interface CacheConfig {
+  ttl: number; // Time to live in seconds
+  maxSize: number; // Maximum cache size
+}
+
+class AIResponseCache {
+  private cache: Map<string, {
+    data: any;
+    timestamp: number;
+  }>;
+  private config: CacheConfig;
+
+  constructor(config: CacheConfig) {
+    this.cache = new Map();
+    this.config = config;
+  }
+
+  public set(key: string, value: any): void {
+    this.cache.set(key, {
+      data: value,
+      timestamp: Date.now()
+    });
+  }
+
+  public get(key: string): any | null {
+    const cached = this.cache.get(key);
+    if (!cached) return null;
+
+    const age = (Date.now() - cached.timestamp) / 1000;
+    if (age > this.config.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return cached.data;
+  }
+}
+```
+
+5. Rate Limiting:
+```typescript
+class RateLimiter {
+  private queue: Array<() => Promise<any>>;
+  private processing: boolean;
+  private tokensRemaining: number;
+  private lastReset: number;
+
+  constructor(private config: {
+    tokensPerMinute: number;
+    maxConcurrent: number;
+  }) {
+    this.queue = [];
+    this.processing = false;
+    this.tokensRemaining = config.tokensPerMinute;
+    this.lastReset = Date.now();
+  }
+
+  public async schedule<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      if (!this.processing) {
+        this.processQueue();
+      }
+    });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.queue.length === 0) {
+      this.processing = false;
+      return;
+    }
+
+    this.processing = true;
+
+    // Reset tokens if needed
+    const now = Date.now();
+    if (now - this.lastReset >= 60000) {
+      this.tokensRemaining = this.config.tokensPerMinute;
+      this.lastReset = now;
+    }
+
+    if (this.tokensRemaining > 0) {
+      const task = this.queue.shift();
+      if (task) {
+        this.tokensRemaining--;
+        await task();
+      }
+    }
+
+    // Continue processing queue
+    setTimeout(() => this.processQueue(), 50);
+  }
+}
+```
+
+6. Cost Optimization:
+- Implement token counting
+- Use appropriate model sizes
+- Cache common responses
+- Batch requests when possible
+- Monitor usage patterns
+
+7. Security Measures:
+- Validate all inputs
+- Sanitize AI responses
+- Implement request signing
+- Monitor for abuse
+- Implement timeout handling
+
+8. Monitoring and Logging:
+- Track request volumes
+- Monitor response times
+- Log error rates
+- Track token usage
+- Monitor costs
+
+9. Testing Requirements:
+- Mock AI responses
+- Test error scenarios
+- Validate rate limiting
+- Test caching behavior
+- Performance testing
+
+10. Documentation:
+- API documentation
+- Usage examples
+- Error codes
+- Rate limits
+- Best practices 

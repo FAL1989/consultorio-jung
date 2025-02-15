@@ -1,0 +1,425 @@
+Pattern: **/*
+Description: Clean Architecture guidelines for the project
+
+Clean Architecture Guidelines:
+
+1. Layer Separation:
+
+```typescript
+// Domain Layer (Entities)
+// Location: src/domain/entities
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface Conversation {
+  id: string;
+  userId: string;
+  messages: Message[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: Date;
+}
+
+// Use Cases Layer
+// Location: src/domain/usecases
+export interface TranscribeAudioUseCase {
+  execute(params: {
+    audioFile: File;
+    language?: string;
+  }): Promise<{
+    text: string;
+    confidence: number;
+  }>;
+}
+
+export interface GenerateResponseUseCase {
+  execute(params: {
+    conversation: Conversation;
+    message: string;
+  }): Promise<{
+    response: string;
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+    };
+  }>;
+}
+
+// Repository Interfaces
+// Location: src/domain/repositories
+export interface ConversationRepository {
+  create(conversation: Omit<Conversation, 'id'>): Promise<Conversation>;
+  findById(id: string): Promise<Conversation | null>;
+  update(id: string, data: Partial<Conversation>): Promise<Conversation>;
+  delete(id: string): Promise<void>;
+}
+
+// Infrastructure Layer
+// Location: src/infrastructure
+export class SupabaseConversationRepository implements ConversationRepository {
+  constructor(private supabase: SupabaseClient) {}
+
+  async create(conversation: Omit<Conversation, 'id'>): Promise<Conversation> {
+    const { data, error } = await this.supabase
+      .from('conversations')
+      .insert(conversation)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  // ... other methods
+}
+
+// Presentation Layer (Components)
+// Location: src/presentation/components
+export function ConversationView({
+  conversation,
+  onSendMessage,
+}: {
+  conversation: Conversation;
+  onSendMessage: (message: string) => Promise<void>;
+}) {
+  // Component logic
+}
+```
+
+2. Dependency Rule:
+
+```typescript
+// ❌ Wrong - Inner layer depending on outer layer
+class ConversationEntity {
+  constructor(private supabase: SupabaseClient) {} // Violates dependency rule
+}
+
+// ✅ Correct - Using dependency inversion
+interface StorageGateway {
+  save(data: any): Promise<void>;
+  load(id: string): Promise<any>;
+}
+
+class ConversationEntity {
+  constructor(private storage: StorageGateway) {} // Follows dependency rule
+}
+```
+
+3. Use Case Implementation:
+
+```typescript
+// Location: src/domain/usecases/transcribe-audio
+export class TranscribeAudioUseCaseImpl implements TranscribeAudioUseCase {
+  constructor(
+    private openAIService: OpenAIService,
+    private audioValidator: AudioValidator
+  ) {}
+
+  async execute(params: {
+    audioFile: File;
+    language?: string;
+  }): Promise<{
+    text: string;
+    confidence: number;
+  }> {
+    // 1. Validate input
+    await this.audioValidator.validate(params.audioFile);
+
+    // 2. Process business logic
+    const result = await this.openAIService.transcribe(
+      params.audioFile,
+      params.language
+    );
+
+    // 3. Format output
+    return {
+      text: result.text,
+      confidence: result.confidence,
+    };
+  }
+}
+```
+
+4. Repository Pattern:
+
+```typescript
+// Location: src/infrastructure/repositories
+export class MessageRepository {
+  constructor(
+    private dataSource: DataSource,
+    private cacheService: CacheService
+  ) {}
+
+  async findByConversation(conversationId: string): Promise<Message[]> {
+    // 1. Try cache first
+    const cached = await this.cacheService.get(`conv:${conversationId}`);
+    if (cached) return cached;
+
+    // 2. Query database
+    const messages = await this.dataSource
+      .from('messages')
+      .select('*')
+      .where('conversation_id', conversationId)
+      .orderBy('timestamp', 'asc');
+
+    // 3. Update cache
+    await this.cacheService.set(`conv:${conversationId}`, messages);
+
+    return messages;
+  }
+}
+```
+
+5. Service Layer:
+
+```typescript
+// Location: src/domain/services
+export class ConversationService {
+  constructor(
+    private conversationRepository: ConversationRepository,
+    private messageRepository: MessageRepository,
+    private aiService: AIService
+  ) {}
+
+  async processUserMessage(params: {
+    conversationId: string;
+    message: string;
+  }): Promise<{
+    response: string;
+    usage: AIUsage;
+  }> {
+    // 1. Load conversation context
+    const conversation = await this.conversationRepository
+      .findById(params.conversationId);
+
+    if (!conversation) {
+      throw new NotFoundError('Conversation not found');
+    }
+
+    // 2. Generate AI response
+    const result = await this.aiService.generateResponse({
+      conversation,
+      message: params.message,
+    });
+
+    // 3. Save messages
+    await this.messageRepository.createMany([
+      {
+        conversationId: params.conversationId,
+        content: params.message,
+        role: 'user',
+      },
+      {
+        conversationId: params.conversationId,
+        content: result.response,
+        role: 'assistant',
+      },
+    ]);
+
+    return result;
+  }
+}
+```
+
+6. Presentation Layer:
+
+```typescript
+// Location: src/presentation/pages
+export default function ChatPage() {
+  // 1. Dependencies
+  const conversationService = useConversationService();
+  const audioService = useAudioService();
+
+  // 2. State
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // 3. Handlers
+  const handleSendMessage = async (message: string) => {
+    setIsProcessing(true);
+    try {
+      const result = await conversationService
+        .processUserMessage({
+          conversationId,
+          message,
+        });
+      
+      setMessages(prev => [...prev, result]);
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // 4. Render
+  return (
+    <div>
+      <MessageList messages={messages} />
+      <InputArea
+        onSendMessage={handleSendMessage}
+        isProcessing={isProcessing}
+      />
+    </div>
+  );
+}
+```
+
+7. Error Handling:
+
+```typescript
+// Location: src/domain/errors
+export class DomainError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly details?: any
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
+export class ValidationError extends DomainError {
+  constructor(message: string, details?: any) {
+    super(message, 'VALIDATION_ERROR', details);
+  }
+}
+
+export class BusinessError extends DomainError {
+  constructor(message: string, details?: any) {
+    super(message, 'BUSINESS_ERROR', details);
+  }
+}
+```
+
+8. Dependency Injection:
+
+```typescript
+// Location: src/infrastructure/di
+export class Container {
+  private static instance: Container;
+  private services: Map<string, any> = new Map();
+
+  static getInstance(): Container {
+    if (!Container.instance) {
+      Container.instance = new Container();
+    }
+    return Container.instance;
+  }
+
+  register<T>(token: string, implementation: T): void {
+    this.services.set(token, implementation);
+  }
+
+  resolve<T>(token: string): T {
+    const service = this.services.get(token);
+    if (!service) {
+      throw new Error(`Service ${token} not registered`);
+    }
+    return service;
+  }
+}
+
+// Usage
+const container = Container.getInstance();
+
+container.register('ConversationRepository', new SupabaseConversationRepository());
+container.register('AIService', new OpenAIService());
+container.register('ConversationService', new ConversationService(
+  container.resolve('ConversationRepository'),
+  container.resolve('AIService')
+));
+```
+
+9. Testing Strategy:
+
+```typescript
+// Location: src/domain/usecases/__tests__
+describe('TranscribeAudioUseCase', () => {
+  // 1. Setup
+  const mockOpenAIService = {
+    transcribe: vi.fn(),
+  };
+  const mockAudioValidator = {
+    validate: vi.fn(),
+  };
+  const useCase = new TranscribeAudioUseCaseImpl(
+    mockOpenAIService,
+    mockAudioValidator
+  );
+
+  // 2. Tests
+  it('should transcribe valid audio file', async () => {
+    // Arrange
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mp3' });
+    mockAudioValidator.validate.mockResolvedValueOnce(true);
+    mockOpenAIService.transcribe.mockResolvedValueOnce({
+      text: 'Hello, world',
+      confidence: 0.95,
+    });
+
+    // Act
+    const result = await useCase.execute({ audioFile: file });
+
+    // Assert
+    expect(result.text).toBe('Hello, world');
+    expect(result.confidence).toBe(0.95);
+  });
+});
+```
+
+10. Documentation:
+
+```typescript
+/**
+ * Represents a conversation between a user and the AI assistant.
+ * 
+ * @implements {Entity}
+ */
+export class Conversation implements Entity {
+  /**
+   * Creates a new conversation.
+   * 
+   * @param {string} userId - The ID of the user who owns this conversation
+   * @param {Message[]} messages - Initial messages in the conversation
+   * @throws {ValidationError} If the user ID is invalid
+   */
+  constructor(
+    public readonly userId: string,
+    public messages: Message[] = []
+  ) {
+    this.validate();
+  }
+
+  /**
+   * Adds a new message to the conversation.
+   * 
+   * @param {Message} message - The message to add
+   * @throws {ValidationError} If the message is invalid
+   */
+  addMessage(message: Message): void {
+    this.validateMessage(message);
+    this.messages.push(message);
+  }
+
+  private validate(): void {
+    if (!this.userId) {
+      throw new ValidationError('User ID is required');
+    }
+  }
+}
+```
+
+These architecture guidelines should be followed strictly to maintain a clean and maintainable codebase. Regular architecture reviews are recommended to ensure compliance. 

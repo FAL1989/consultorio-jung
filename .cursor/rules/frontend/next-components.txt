@@ -1,0 +1,123 @@
+Pattern: frontend/app/**/*.tsx
+Description: Rules for Next.js components and pages using App Router
+
+Component Development Guidelines:
+
+1. Architecture:
+- Use functional components with TypeScript
+- Implement proper prop typing
+- Follow atomic design principles
+- Use React Server Components when possible
+- Implement proper error boundaries
+
+2. State Management:
+- Use React hooks appropriately
+- Implement proper loading states
+- Handle errors gracefully
+- Use context for global state
+- Implement proper form validation
+
+3. Performance:
+- Implement proper code splitting
+- Use proper image optimization
+- Implement proper caching strategies
+- Use proper lazy loading
+- Optimize re-renders
+
+4. Accessibility:
+- Follow WCAG 2.1 guidelines
+- Implement proper ARIA labels
+- Use semantic HTML
+- Ensure keyboard navigation
+- Test with screen readers
+
+5. Code Style:
+```typescript
+// Example component structure
+'use client';
+
+import { useState, useEffect } from 'react';
+import type { ComponentProps } from '@/types';
+
+interface Props extends ComponentProps {
+  // Type your props here
+}
+
+export function ComponentName({ prop1, prop2 }: Props): JSX.Element {
+  // State hooks
+  const [state, setState] = useState<StateType>(initialState);
+
+  // Effect hooks
+  useEffect(() => {
+    // Side effects here
+    return () => {
+      // Cleanup here
+    };
+  }, [dependencies]);
+
+  // Event handlers
+  const handleEvent = async (): Promise<void> => {
+    try {
+      // Handle event
+    } catch (error) {
+      // Error handling
+    }
+  };
+
+  // Render helpers
+  const renderSection = (): JSX.Element => {
+    return (
+      // JSX here
+    );
+  };
+
+  return (
+    <div className="component-wrapper">
+      {/* Component JSX */}
+    </div>
+  );
+}
+```
+
+6. Testing Requirements:
+- Write unit tests for all components
+- Implement integration tests
+- Test error scenarios
+- Test accessibility
+- Test performance
+
+7. Documentation:
+- Add JSDoc comments
+- Document props interface
+- Add usage examples
+- Document side effects
+- Document dependencies
+
+8. Error Handling:
+```typescript
+try {
+  // Async operations
+} catch (error) {
+  if (error instanceof CustomError) {
+    // Handle specific error
+  } else {
+    // Handle generic error
+  }
+  // Log error if needed
+  console.error('Error in ComponentName:', error);
+}
+```
+
+9. Styling Guidelines:
+- Use Tailwind CSS utilities
+- Follow mobile-first approach
+- Implement dark mode support
+- Use CSS variables for theming
+- Follow BEM-like class naming
+
+10. Security:
+- Sanitize user inputs
+- Implement proper XSS protection
+- Use proper CSRF protection
+- Implement proper authentication
+- Handle sensitive data properly 
