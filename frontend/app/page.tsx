@@ -3,9 +3,9 @@
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { ChatHistory } from "@/components/ChatHistory";
 import { MessageInput } from "@/components/MessageInput";
+import { ConversationList } from "@/components/ConversationList";
 import { useChat } from "@/lib/hooks/useChat";
 import { useAuth } from "@/lib/hooks/useAuth";
-import type { Dispatch, SetStateAction } from "react";
 
 export default function ChatPage(): JSX.Element {
   const { session, signIn } = useAuth();
@@ -14,7 +14,11 @@ export default function ChatPage(): JSX.Element {
     currentMessage, 
     setCurrentMessage, 
     handleSend,
-    isLoading 
+    isLoading,
+    conversations,
+    currentConversation,
+    loadConversation,
+    startNewConversation
   } = useChat();
 
   if (!session) {
@@ -36,31 +40,40 @@ export default function ChatPage(): JSX.Element {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
-        <h1 className="text-4xl font-bold text-center mb-8">
-          Consultório do Dr. Jung
-        </h1>
-        
-        <div className="bg-white rounded-lg shadow-xl p-6 space-y-4">
-          <ChatHistory messages={messages} />
+    <div className="flex min-h-screen">
+      <ConversationList 
+        conversations={conversations}
+        currentConversationId={currentConversation?.id ?? null}
+        onSelect={loadConversation}
+        onNewChat={startNewConversation}
+      />
+
+      <main className="flex-1 flex flex-col">
+        <div className="flex-1 p-8">
+          <h1 className="text-4xl font-bold text-center mb-8">
+            Consultório do Dr. Jung
+          </h1>
           
-          <div className="border-t pt-4">
-            <AudioRecorder 
-              onTranscription={(text: string) => {
-                setCurrentMessage((prev: string) => prev + " " + text.trim());
-              }}
-            />
+          <div className="bg-white rounded-lg shadow-xl p-6 space-y-4 max-w-4xl mx-auto">
+            <ChatHistory messages={messages} />
             
-            <MessageInput
-              value={currentMessage}
-              onChange={setCurrentMessage}
-              onSend={handleSend}
-              isLoading={isLoading}
-            />
+            <div className="border-t pt-4">
+              <AudioRecorder 
+                onTranscription={(text: string) => {
+                  setCurrentMessage((prev: string) => prev + " " + text.trim());
+                }}
+              />
+              
+              <MessageInput
+                value={currentMessage}
+                onChange={setCurrentMessage}
+                onSend={handleSend}
+                isLoading={isLoading}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 } 

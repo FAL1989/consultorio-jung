@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import type { ChatResponse } from "@/types/chat";
+import type { ChatResponse, Message } from "@/types/chat";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Processa o corpo da requisição
     const body = await req.json();
-    const { message } = body;
+    const { message, conversationId } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -59,11 +59,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Se houver ID da conversa, carrega o histórico
+    let conversationHistory = [];
+    if (conversationId) {
+      const { data: conversation, error } = await supabase
+        .from('conversations')
+        .select('messages')
+        .eq('id', conversationId)
+        .single();
+
+      if (error) {
+        console.error('Erro ao carregar conversa:', error);
+      } else if (conversation) {
+        conversationHistory = conversation.messages.map((msg: Message) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+      }
+    }
+
     // Gera resposta usando GPT-4
     const completion = await openai.chat.completions.create({
       model: "gpt-4-0125-preview",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
+        ...conversationHistory,
         { role: "user", content: message }
       ],
       temperature: 0.9,

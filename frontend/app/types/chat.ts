@@ -42,7 +42,5 @@ export interface TranscriptionResponse {
 }
 
 export interface ChatError {
-  code: string;
-  message: string;
-  details?: unknown;
+  error: string;
 } 

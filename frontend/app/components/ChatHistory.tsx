@@ -1,47 +1,64 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
 import type { Message } from '@/types/chat';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface ChatHistoryProps {
   messages: Message[];
 }
 
 export function ChatHistory({ messages }: ChatHistoryProps): JSX.Element {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const formatMessageTime = (date: Date): string => {
+    const now = new Date();
+    const messageDate = new Date(date);
+    const diffInMinutes = Math.floor((now.getTime() - messageDate.getTime()) / (1000 * 60));
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (diffInMinutes < 1) return 'agora mesmo';
+    if (diffInMinutes < 60) return `há ${diffInMinutes} minutos`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `há ${diffInHours} horas`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return 'há 1 dia';
+    if (diffInDays < 7) return `há ${diffInDays} dias`;
+    
+    return messageDate.toLocaleDateString('pt-BR', {
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
-    <div className="flex flex-col space-y-4 p-4 h-[600px] overflow-y-auto">
+    <div className="space-y-4 max-h-[60vh] overflow-y-auto p-4">
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`flex flex-col ${
-            message.role === 'user' ? 'items-end' : 'items-start'
+          className={`flex ${
+            message.role === 'user' ? 'justify-end' : 'justify-start'
           }`}
         >
           <div
             className={`max-w-[80%] rounded-lg p-4 ${
               message.role === 'user'
-                ? 'bg-blue-500 text-white'
+                ? 'bg-indigo-600 text-white'
                 : 'bg-gray-100 text-gray-900'
             }`}
           >
-            <p className="whitespace-pre-wrap">{message.content}</p>
-            <span className="text-xs opacity-70 mt-2 block">
-              {format(message.timestamp, "d 'de' MMMM', às' HH:mm", {
-                locale: ptBR,
-              })}
-            </span>
+            <div className="prose max-w-none">
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            </div>
+            <div
+              className={`text-xs mt-2 ${
+                message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
+              }`}
+            >
+              {formatMessageTime(message.timestamp)}
+            </div>
           </div>
         </div>
       ))}
-      <div ref={bottomRef} />
     </div>
   );
 } 
