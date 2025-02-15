@@ -7,10 +7,10 @@ export interface Message {
 
 export interface Conversation {
   id: string;
-  userId: string;
+  user_id: string;
   messages: Message[];
-  createdAt: Date;
-  updatedAt: Date;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface ChatState {
@@ -27,11 +27,22 @@ export interface ChatContextType extends ChatState {
   loadConversation: (id: string) => Promise<void>;
 }
 
-export interface AIResponse {
+export interface ChatResponse {
   response: string;
   usage: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
   };
+}
+
+export interface TranscriptionResponse {
+  transcript: string;
+  error?: string;
+}
+
+export interface ChatError {
+  code: string;
+  message: string;
+  details?: unknown;
 } 

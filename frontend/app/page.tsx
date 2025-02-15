@@ -46,7 +46,7 @@ export default function ChatPage(): JSX.Element {
           
           <div className="border-t pt-4">
             <AudioRecorder 
-              onTranscription={(text) => setCurrentMessage(prev => prev + " " + text)}
+              onTranscription={(text: string) => setCurrentMessage((prev: string) => prev + " " + text)}
             />
             
             <MessageInput
