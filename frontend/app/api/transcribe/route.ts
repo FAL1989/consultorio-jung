@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Configuration, OpenAIApi } from "openai";
+import OpenAI from "openai";
 import { promises as fs } from "fs";
+import { createReadStream } from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+import type { ReadStream } from "fs";
 
 // Configuração da OpenAI
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 /**
  * POST /api/transcribe
  * Recebe um arquivo de áudio via FormData e retorna o texto transcrito.
  */
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     // Extrai o arquivo de áudio do FormData
     const formData = await req.formData();
@@ -37,21 +38,18 @@ export async function POST(req: NextRequest) {
 
     try {
       // Usa o endpoint de transcrição da OpenAI (Whisper)
-      const response = await openai.createTranscription(
-        fs.createReadStream(tempFilePath) as any,
-        "whisper-1",
-        undefined,
-        undefined,
-        0.8,
-        "pt" // Definindo português como idioma padrão
-      );
+      const response = await openai.audio.transcriptions.create({
+        file: createReadStream(tempFilePath) as ReadStream,
+        model: "whisper-1",
+        language: "pt",
+      });
 
       // Apaga o arquivo temporário
       await fs.unlink(tempFilePath);
 
       // Retorna a transcrição para o cliente
-      return NextResponse.json({ transcript: response.data.text });
-    } catch (error: any) {
+      return NextResponse.json({ transcript: response.text });
+    } catch (error) {
       // Tenta apagar o arquivo temporário em caso de erro
       try {
         await fs.unlink(tempFilePath);
@@ -61,10 +59,16 @@ export async function POST(req: NextRequest) {
 
       throw error;
     }
-  } catch (error: any) {
-    console.error("Erro na transcrição:", error);
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error("Erro na transcrição:", error);
+      return NextResponse.json(
+        { error: error.message || "Erro interno do servidor" },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
-      { error: error.message || "Erro interno do servidor" },
+      { error: "Erro interno do servidor" },
       { status: 500 }
     );
   }

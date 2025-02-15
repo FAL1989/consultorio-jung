@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { ChatHistory } from "@/components/ChatHistory";
 import { MessageInput } from "@/components/MessageInput";
 import { useChat } from "@/lib/hooks/useChat";
 import { useAuth } from "@/lib/hooks/useAuth";
 
-export default function ChatPage() {
+export default function ChatPage(): JSX.Element {
   const { session, signIn } = useAuth();
   const { 
     messages, 

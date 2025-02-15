@@ -15,12 +15,12 @@ export function MessageInput({
   onChange,
   onSend,
   isLoading = false,
-}: MessageInputProps) {
+}: MessageInputProps): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [rows, setRows] = useState(1);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (!isLoading && value.trim()) {
@@ -31,7 +31,7 @@ export function MessageInput({
     [isLoading, value, onSend]
   );
 
-  const handleInput = useCallback(() => {
+  const handleInput = useCallback((): void => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 

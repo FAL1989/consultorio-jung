@@ -9,7 +9,7 @@ interface ChatHistoryProps {
   messages: Message[];
 }
 
-export function ChatHistory({ messages }: ChatHistoryProps) {
+export function ChatHistory({ messages }: ChatHistoryProps): JSX.Element {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

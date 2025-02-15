@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { User, Session } from '@supabase/supabase-js';
 
-export function useAuth() {
+interface AuthHookReturn {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
+  supabase: ReturnType<typeof createClientComponentClient>;
+}
+
+export function useAuth(): AuthHookReturn {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -10,11 +19,14 @@ export function useAuth() {
 
   useEffect(() => {
     // Verifica sessão atual
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const checkSession = async (): Promise<void> => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
+
+    checkSession();
 
     // Escuta mudanças na autenticação
     const {
@@ -26,9 +38,9 @@ export function useAuth() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase.auth]);
 
-  const signIn = async () => {
+  const signIn = async (): Promise<void> => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -42,7 +54,7 @@ export function useAuth() {
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<void> => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Erro no logout:', error.message);

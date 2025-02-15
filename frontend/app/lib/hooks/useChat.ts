@@ -2,13 +2,22 @@ import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import type { Message } from '@/types/chat';
 
-export function useChat() {
+interface ChatHookReturn {
+  messages: Message[];
+  currentMessage: string;
+  setCurrentMessage: (message: string) => void;
+  isLoading: boolean;
+  handleSend: () => Promise<void>;
+  clearChat: () => void;
+}
+
+export function useChat(): ChatHookReturn {
   const { user, supabase } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (): Promise<void> => {
     if (!currentMessage.trim() || !user) return;
 
     setIsLoading(true);
@@ -69,7 +78,7 @@ export function useChat() {
     }
   }, [currentMessage, user, supabase]);
 
-  const clearChat = useCallback(() => {
+  const clearChat = useCallback((): void => {
     setMessages([]);
     setCurrentMessage('');
   }, []);

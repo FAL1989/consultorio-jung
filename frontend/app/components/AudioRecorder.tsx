@@ -7,26 +7,26 @@ interface AudioRecorderProps {
   onTranscription: (text: string) => void;
 }
 
-export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
+export function AudioRecorder({ onTranscription }: AudioRecorderProps): JSX.Element {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  const startRecording = async () => {
+  const startRecording = async (): Promise<void> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (e) => {
+      mediaRecorder.ondataavailable = (e: BlobEvent): void => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
 
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = async (): Promise<void> => {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
         await handleAudioUpload(audioBlob);
         stream.getTracks().forEach(track => track.stop());
@@ -40,14 +40,14 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (): void => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
   };
 
-  const handleAudioUpload = async (audioBlob: Blob) => {
+  const handleAudioUpload = async (audioBlob: Blob): Promise<void> => {
     setIsProcessing(true);
     try {
       const formData = new FormData();
@@ -73,7 +73,7 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const file = e.target.files?.[0];
     if (!file) return;
 
