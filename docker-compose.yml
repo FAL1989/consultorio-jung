@@ -13,6 +13,21 @@ services:
     environment:
       - NODE_ENV=development
     command: npm run dev
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+    networks:
+      - app-network
 
   # Serviço opcional para desenvolvimento local do Supabase
   # supabase:
@@ -22,3 +37,7 @@ services:
   #     - "54322:54322"
   #   environment:
   #     POSTGRES_PASSWORD: your-password-here 
+
+networks:
+  app-network:
+    driver: bridge 

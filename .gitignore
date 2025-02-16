@@ -48,6 +48,8 @@ venv/
 .vscode/
 *.swp
 *.swo
+.cursor
+.gitignore
 
 # Temporary files
 /tmp/
