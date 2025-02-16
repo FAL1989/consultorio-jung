@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instala dependências do sistema
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3-dev \
+    libpq-dev \
+    gcc \
+    g++ \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copia arquivos de configuração
+COPY requirements.txt .
+COPY .env .
+
+# Instala dependências Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Instala modelos do spaCy
+RUN python -m spacy download pt_core_news_sm
+
+# Copia o resto do código
+COPY . .
+
+# Expõe a porta 8000
+EXPOSE 8000
+
+# Comando para iniciar em modo de desenvolvimento
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] 
