@@ -55,3 +55,4 @@ venv/
 /tmp/
 *.tmp
 *.temp
+scripts/
