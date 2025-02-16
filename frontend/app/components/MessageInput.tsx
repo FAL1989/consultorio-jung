@@ -48,7 +48,7 @@ export function MessageInput({
   }, []);
 
   return (
-    <div className="flex items-end space-x-2 p-4 border-t">
+    <div className="flex items-end space-x-2 p-2 md:p-4">
       <textarea
         ref={textareaRef}
         value={value}
@@ -57,17 +57,30 @@ export function MessageInput({
         onInput={handleInput}
         rows={rows}
         placeholder="Digite sua mensagem..."
-        className="flex-1 resize-none rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        className="flex-1 resize-none rounded-lg border border-gray-300 p-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white text-gray-900 text-sm md:text-base"
         disabled={isLoading}
+        style={{ 
+          minHeight: '36px',
+          maxHeight: '120px',
+          fontSize: '16px',
+          position: 'relative',
+          bottom: '0',
+          WebkitAppearance: 'none'
+        }}
       />
       <button
         onClick={onSend}
         disabled={isLoading || !value.trim()}
-        className={`p-2 rounded-lg ${
+        className={`p-2 rounded-lg flex-shrink-0 ${
           isLoading || !value.trim()
-            ? 'bg-gray-300 cursor-not-allowed'
-            : 'bg-blue-500 hover:bg-blue-600'
+            ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+            : 'bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600'
         }`}
+        style={{
+          minWidth: '44px',
+          minHeight: '44px',
+          WebkitAppearance: 'none'
+        }}
       >
         <PaperAirplaneIcon
           className={`h-5 w-5 ${

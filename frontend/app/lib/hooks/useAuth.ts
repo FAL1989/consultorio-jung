@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { User, Session } from '@supabase/supabase-js';
+import type { Database } from '@/types/supabase';
 
 interface AuthHookReturn {
   user: User | null;
   session: Session | null;
   loading: boolean;
   signIn: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  supabase: ReturnType<typeof createClientComponentClient>;
+  supabase: ReturnType<typeof createClientComponentClient<Database>>;
 }
 
 export function useAuth(): AuthHookReturn {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  const supabase = createClientComponentClient<Database>();
 
   useEffect(() => {
     // Verifica sessão atual
@@ -44,8 +46,24 @@ export function useAuth(): AuthHookReturn {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: 'https://mindfuljung.com/auth/callback',
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
+    });
+
+    if (error) {
+      console.error('Erro no login:', error.message);
+      throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string): Promise<void> => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
     if (error) {
@@ -67,6 +85,7 @@ export function useAuth(): AuthHookReturn {
     session,
     loading,
     signIn,
+    signInWithEmail,
     signOut,
     supabase,
   };

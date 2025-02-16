@@ -1,13 +1,15 @@
 'use client';
 
 import type { Conversation } from '@/types/chat';
-import { PlusIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ChatBubbleLeftIcon, TrashIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface ConversationListProps {
   conversations: Conversation[];
   currentConversationId: string | null;
   onSelect: (conversation: Conversation) => void;
   onNewChat: () => void;
+  onDelete: (conversationId: string) => Promise<void>;
 }
 
 export function ConversationList({
@@ -15,7 +17,10 @@ export function ConversationList({
   currentConversationId,
   onSelect,
   onNewChat,
+  onDelete,
 }: ConversationListProps): JSX.Element {
+  const { signOut } = useAuth();
+  
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('pt-BR', {
       day: 'numeric',
@@ -26,43 +31,65 @@ export function ConversationList({
   };
 
   return (
-    <div className="w-64 h-screen bg-gray-50 p-4 border-r">
-      <button
-        onClick={onNewChat}
-        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors mb-4"
-      >
-        <PlusIcon className="h-5 w-5" />
-        <span>Nova Conversa</span>
-      </button>
+    <div className="h-full flex flex-col overflow-hidden p-2 md:p-4 bg-white/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={onNewChat}
+          className="flex items-center space-x-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+        >
+          <PlusIcon className="h-4 w-4" />
+          <span>Nova Conversa</span>
+        </button>
 
-      <div className="space-y-2">
+        <button
+          onClick={() => signOut()}
+          className="p-2 rounded-lg text-gray-600 hover:text-red-500 hover:bg-red-50 transition-colors"
+          title="Sair"
+        >
+          <ArrowLeftOnRectangleIcon className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-2">
         {conversations.map((conversation) => {
-          // Pega a primeira mensagem do usuário para usar como título
           const firstUserMessage = conversation.messages.find(
             (msg) => msg.role === 'user'
           );
           const title = firstUserMessage?.content.slice(0, 30) + '...' || 'Nova conversa';
 
           return (
-            <button
+            <div
               key={conversation.id}
-              onClick={() => onSelect(conversation)}
-              className={`w-full flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors text-left ${
+              className={`group relative flex items-center space-x-3 p-2 rounded-lg hover:bg-white/70 transition-colors cursor-pointer ${
                 conversation.id === currentConversationId
-                  ? 'bg-gray-100 border border-indigo-200'
+                  ? 'bg-white/80 border-indigo-100 shadow-sm'
                   : ''
               }`}
+              onClick={() => onSelect(conversation)}
             >
-              <ChatBubbleLeftIcon className="h-5 w-5 text-gray-500 mt-1" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {title}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {formatDate(conversation.created_at)}
-                </p>
+              <div className="flex items-start space-x-3 min-w-0 flex-1">
+                <ChatBubbleLeftIcon className="h-4 w-4 text-gray-500 mt-1 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {title}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {formatDate(conversation.created_at)}
+                  </p>
+                </div>
               </div>
-            </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(conversation.id);
+                }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                title="Deletar conversa"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
           );
         })}
       </div>

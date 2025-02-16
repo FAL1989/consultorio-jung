@@ -1,6 +1,19 @@
+export interface MessageContent {
+  text: string;
+  concepts?: Array<{
+    name: string;
+    description: string;
+  }>;
+  references?: Array<{
+    title: string;
+    author: string;
+    year: string;
+  }>;
+}
+
 export interface Message {
   id: string;
-  content: string;
+  content: MessageContent | string;
   role: 'user' | 'assistant';
   timestamp: Date;
 }
@@ -11,6 +24,14 @@ export interface Conversation {
   messages: Message[];
   created_at: Date;
   updated_at: Date;
+}
+
+export interface SupabaseConversation {
+  id: string;
+  user_id: string;
+  messages: Message[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChatState {
@@ -28,7 +49,7 @@ export interface ChatContextType extends ChatState {
 }
 
 export interface ChatResponse {
-  response: string;
+  response: MessageContent;
   usage: {
     prompt_tokens: number;
     completion_tokens: number;

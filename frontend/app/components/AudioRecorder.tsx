@@ -81,47 +81,48 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps): JSX.Elem
   };
 
   return (
-    <div className="flex items-center space-x-4 mb-4">
+    <div className="flex items-center gap-2 p-2 border-b">
       <button
         onClick={isRecording ? stopRecording : startRecording}
         disabled={isProcessing}
-        className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors ${
           isRecording
-            ? "bg-red-500 hover:bg-red-600"
-            : "bg-blue-500 hover:bg-blue-600"
-        } text-white transition-colors`}
+            ? "bg-red-500 hover:bg-red-600 text-white"
+            : "bg-indigo-100 hover:bg-indigo-200 text-indigo-600"
+        }`}
       >
         {isRecording ? (
           <>
-            <StopIcon className="h-5 w-5" />
-            <span>Parar Gravação</span>
+            <StopIcon className="h-4 w-4" />
+            <span>Parar</span>
           </>
         ) : (
           <>
-            <MicrophoneIcon className="h-5 w-5" />
-            <span>Gravar Áudio</span>
+            <MicrophoneIcon className="h-4 w-4" />
+            <span>Gravar</span>
           </>
         )}
       </button>
 
-      <div className="flex-1">
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={handleFileUpload}
-          disabled={isRecording || isProcessing}
-          className="block w-full text-sm text-slate-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-full file:border-0
-            file:text-sm file:font-semibold
-            file:bg-violet-50 file:text-violet-700
-            hover:file:bg-violet-100"
-        />
+      <div className="flex-1 flex items-center gap-2">
+        <label className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full cursor-pointer text-sm transition-colors">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <span>Escolher Arquivo</span>
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleFileUpload}
+            disabled={isRecording || isProcessing}
+            className="hidden"
+          />
+        </label>
       </div>
 
       {isProcessing && (
-        <div className="flex items-center text-sm text-gray-500">
-          <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
             <circle
               className="opacity-25"
               cx="12"
@@ -137,7 +138,7 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps): JSX.Elem
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          Processando áudio...
+          <span>Processando...</span>
         </div>
       )}
     </div>

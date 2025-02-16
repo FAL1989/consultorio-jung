@@ -1,6 +1,24 @@
 'use client';
 
-import type { Message } from '@/types/chat';
+interface MessageContent {
+  text: string;
+  concepts?: Array<{
+    name: string;
+    description: string;
+  }>;
+  references?: Array<{
+    title: string;
+    author: string;
+    year: string;
+  }>;
+}
+
+interface Message {
+  id: string;
+  content: MessageContent | string;
+  role: 'user' | 'assistant';
+  timestamp: Date;
+}
 
 interface ChatHistoryProps {
   messages: Message[];
@@ -49,7 +67,41 @@ export function ChatHistory({ messages, isLoading = false }: ChatHistoryProps): 
               }`}
             >
               <div className="text-sm md:text-base">
-                <p className="whitespace-pre-wrap break-words mb-2">{message.content}</p>
+                <p className="whitespace-pre-wrap break-words mb-2">
+                  {typeof message.content === 'string' 
+                    ? message.content 
+                    : message.content.text}
+                </p>
+                
+                {message.role === 'assistant' && typeof message.content !== 'string' && message.content.concepts && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-medium mb-2">Conceitos Relacionados:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {message.content.concepts.map((concept, index) => (
+                        <div 
+                          key={index}
+                          className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded-lg text-sm cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                          title={concept.description}
+                        >
+                          {concept.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {message.role === 'assistant' && typeof message.content !== 'string' && message.content.references && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-medium mb-2">Referências:</p>
+                    <div className="space-y-1">
+                      {message.content.references.map((ref, index) => (
+                        <p key={index} className="text-sm text-gray-600 dark:text-gray-400">
+                          {ref.author} ({ref.year}) - {ref.title}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div
                 className={`text-[10px] md:text-xs ${

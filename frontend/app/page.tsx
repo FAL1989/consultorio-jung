@@ -1,79 +1,94 @@
 "use client";
 
-import { AudioRecorder } from "@/components/AudioRecorder";
-import { ChatHistory } from "@/components/ChatHistory";
-import { MessageInput } from "@/components/MessageInput";
-import { ConversationList } from "@/components/ConversationList";
-import { useChat } from "@/lib/hooks/useChat";
 import { useAuth } from "@/lib/hooks/useAuth";
 
-export default function ChatPage(): JSX.Element {
-  const { session, signIn } = useAuth();
-  const { 
-    messages, 
-    currentMessage, 
-    setCurrentMessage, 
-    handleSend,
-    isLoading,
-    conversations,
-    currentConversation,
-    loadConversation,
-    startNewConversation
-  } = useChat();
-
-  if (!session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-md space-y-8 p-10 bg-white rounded-xl shadow-lg">
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-            Diálogos Junguianos
-          </h2>
-          <button
-            onClick={() => signIn()}
-            className="group relative flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-          >
-            Entrar
-          </button>
-        </div>
-      </div>
-    );
-  }
+export default function LandingPage(): JSX.Element {
+  const { signIn } = useAuth();
 
   return (
-    <div className="flex min-h-screen">
-      <ConversationList 
-        conversations={conversations}
-        currentConversationId={currentConversation?.id ?? null}
-        onSelect={loadConversation}
-        onNewChat={startNewConversation}
+    <div className="min-h-screen relative">
+      {/* Background Image */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/images/stones-6788902.jpg')" }}
       />
 
-      <main className="flex-1 flex flex-col">
-        <div className="flex-1 p-8">
-          <h1 className="text-4xl font-bold text-center mb-8">
-            Consultório do Dr. Jung
-          </h1>
-          
-          <div className="bg-white rounded-lg shadow-xl p-6 space-y-4 max-w-4xl mx-auto">
-            <ChatHistory messages={messages} />
-            
-            <div className="border-t pt-4">
-              <AudioRecorder 
-                onTranscription={(text: string) => {
-                  setCurrentMessage((prev: string) => prev + " " + text.trim());
-                }}
-              />
-              
-              <MessageInput
-                value={currentMessage}
-                onChange={setCurrentMessage}
-                onSend={handleSend}
-                isLoading={isLoading}
-              />
-            </div>
+      {/* Main Card */}
+      <div className="relative flex flex-col items-center justify-center min-h-screen py-12">
+        {/* Hero Card */}
+        <div className="bg-white rounded-3xl p-8 shadow-lg max-w-md w-full mx-auto mb-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">
+              Diálogos Junguianos
+            </h1>
+            <p className="text-base text-gray-600 mb-8">
+              Uma jornada de autoconhecimento inspirada nos ensinamentos de Carl Gustav Jung
+            </p>
+            <button
+              onClick={() => signIn()}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+            >
+              Comece sua Jornada
+            </button>
           </div>
         </div>
-      </main>
+
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl w-full mx-auto px-4 mb-8">
+          {/* Conceitos Fundamentais */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Conceitos Fundamentais
+            </h3>
+            <p className="text-sm text-gray-600">
+              Explore os principais conceitos da psicologia analítica: arquétipos, 
+              inconsciente coletivo, individuação e muito mais.
+            </p>
+          </div>
+
+          {/* Abordagem Terapêutica */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Abordagem Terapêutica
+            </h3>
+            <p className="text-sm text-gray-600">
+              Uma experiência terapêutica baseada na psicologia analítica de Jung, com foco no 
+              autoconhecimento e desenvolvimento pessoal.
+            </p>
+          </div>
+
+          {/* Integração com IA */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Integração com IA
+            </h3>
+            <p className="text-sm text-gray-600">
+              Tecnologia avançada de IA combinada com os princípios junguianos para 
+              oferecer insights profundos e significativos.
+            </p>
+          </div>
+        </div>
+
+        {/* About Section */}
+        <div className="bg-white rounded-3xl p-8 shadow-lg max-w-4xl w-full mx-auto">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Sobre Carl Gustav Jung
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Carl Gustav Jung (1875-1961) foi um psiquiatra e psicoterapeuta suíço que
+              fundou a psicologia analítica. Sua abordagem única para a compreensão da
+              psique humana continua influenciando a psicologia moderna, a arte, a
+              literatura e a espiritualidade.
+            </p>
+            <p className="text-sm text-gray-600">
+              Seus conceitos de arquétipos, inconsciente coletivo, persona, sombra e
+              individuação oferecem um rico framework para o autoconhecimento e o
+              desenvolvimento pessoal.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
-} 
+}
