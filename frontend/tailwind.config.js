@@ -21,7 +21,12 @@ module.exports = {
           950: '#082f49',
         },
       },
+      scale: {
+        '102': '1.02',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
 } 
