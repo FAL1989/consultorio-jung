@@ -55,7 +55,9 @@ export function ConversationList({
           const firstUserMessage = conversation.messages.find(
             (msg) => msg.role === 'user'
           );
-          const title = firstUserMessage?.content.slice(0, 30) + '...' || 'Nova conversa';
+          const title = typeof firstUserMessage?.content === 'string' 
+            ? firstUserMessage.content.slice(0, 30) + '...' 
+            : firstUserMessage?.content?.text?.slice(0, 30) + '...' || 'Nova conversa';
 
           return (
             <div
