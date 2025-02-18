@@ -1,38 +1,52 @@
-# dependencies
-node_modules
-.pnp
+# Dependencies
+node_modules/
+.pnp/
 .pnp.js
+.yarn/
+.yarnrc
+.pnpm/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# testing
-coverage
+# Testing
+coverage/
+.nyc_output/
+cypress/videos/
+cypress/screenshots/
 
-# next.js
+# Next.js
 .next/
 out/
-build
-dist
+build/
+dist/
+.vercel/
+.env*.local
+next-env.d.ts
 
-# misc
-.DS_Store
-*.pem
+# Production
+build/
+dist/
+*.tsbuildinfo
 
-# debug
+# Debug & Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
+*.log
+logs/
+debug/
 
-# local env files
-.env*.local
+# Environment Variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# Python
+# Python Backend
 __pycache__/
 *.py[cod]
 *$py.class
@@ -41,18 +55,65 @@ env/
 venv/
 .env/
 .venv/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
 .streamlit/secrets.toml
 
-# IDE
+# IDE & Editors
 .idea/
 .vscode/
 *.swp
 *.swo
-.cursor
-.gitignore
+*.swn
+*.bak
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.cursor/
+.settings/
+.project
+.classpath
+*.code-workspace
 
-# Temporary files
+# OS Generated
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary & Cache
 /tmp/
 *.tmp
 *.temp
+.cache/
+.temp/
 scripts/
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Build & Deployment
+.dockerignore
+docker-compose.override.yml
+*.pem
+.netlify/
+
+# Development Tools
+*.bak
+*.orig
+*.rej
+*.patch
+.history/
+.git/
+.husky/
+.storybook-static/
+storybook-static/
+.turbo/
