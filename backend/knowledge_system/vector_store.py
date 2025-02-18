@@ -1,25 +1,41 @@
 from typing import List, Dict, Any
-import pinecone
-from langchain.embeddings import OpenAIEmbeddings
+from pinecone import Pinecone, ServerlessSpec
+from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+import os
 
 class JungianVectorStore:
-    def __init__(self, api_key: str, environment: str, index_name: str = "jungian-knowledge"):
+    def __init__(self, api_key: str, environment: str, index_name: str = "jung-knowledge"):
         """Initialize the vector store with Pinecone."""
-        pinecone.init(api_key=api_key, environment=environment)
+        self.pc = Pinecone(api_key=api_key)
         self.index_name = index_name
         self.embeddings = OpenAIEmbeddings()
         
+        # Get host from environment or use default
+        self.host = os.getenv("PINECONE_INDEX_HOST", "https://jung-knowledge-vcl4wtd.svc.aped-4627-b74a.pinecone.io")
+        
         # Create index if it doesn't exist
-        if self.index_name not in pinecone.list_indexes():
-            pinecone.create_index(
+        if self.index_name not in self.pc.list_indexes().names():
+            self.pc.create_index(
                 name=self.index_name,
                 dimension=1536,  # OpenAI embedding dimension
-                metric="cosine"
+                metric="cosine",
+                spec=ServerlessSpec(
+                    cloud="aws",
+                    region="us-west-2"
+                )
             )
         
-        self.index = pinecone.Index(self.index_name)
+        self.index = self.pc.Index(self.index_name, host=self.host)
+    
+    async def test_connection(self) -> bool:
+        """Test the connection to Pinecone."""
+        try:
+            self.pc.list_indexes()
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to connect to Pinecone: {str(e)}")
     
     def process_text(self, text: str, metadata: Dict[str, Any] = None) -> List[Document]:
         """Process text into chunks with metadata."""

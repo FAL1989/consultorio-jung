@@ -28,10 +28,32 @@ class TherapeuticProcess(BaseModel):
     expected_outcomes: List[str]
 
 class JungianKnowledgeBase:
-    def __init__(self):
+    def __init__(self, vector_store):
         self.concepts: Dict[str, JungianConcept] = {}
         self.archetypes: Dict[str, JungianArchetype] = {}
         self.processes: Dict[str, TherapeuticProcess] = {}
+        self.vector_store = vector_store
+    
+    async def query(self, query: str, max_results: int = 3) -> List[Dict]:
+        """Realiza uma busca semântica na base de conhecimento."""
+        try:
+            results = self.vector_store.similarity_search(
+                query=query,
+                k=max_results
+            )
+            
+            return [
+                {
+                    "title": doc.metadata.get("title", ""),
+                    "content": doc.page_content,
+                    "category": doc.metadata.get("category", ""),
+                    "references": doc.metadata.get("references", []),
+                    "confidence": 0.8  # TODO: Implementar cálculo de confiança
+                }
+                for doc in results
+            ]
+        except Exception as e:
+            raise Exception(f"Erro ao realizar busca: {str(e)}")
     
     def add_concept(self, concept: JungianConcept) -> None:
         """Adiciona um conceito à base de conhecimento."""
