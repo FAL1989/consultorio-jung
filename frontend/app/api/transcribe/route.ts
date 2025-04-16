@@ -1,23 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-import { promises as fs } from "fs";
-import { createReadStream } from "fs";
-import path from "path";
-import { v4 as uuidv4 } from "uuid";
-import type { ReadStream } from "fs";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
-// Configuração da OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Pega a URL do backend da variável de ambiente (a mesma usada em /chat)
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+
+if (!BACKEND_URL) {
+  throw new Error("Variável de ambiente NEXT_PUBLIC_BACKEND_API_URL não está definida!");
+}
 
 /**
  * POST /api/transcribe
- * Recebe um arquivo de áudio via FormData e retorna o texto transcrito.
+ * Recebe um arquivo de áudio via FormData, verifica autenticação
+ * e encaminha para o backend para transcrição.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    // Extrai o arquivo de áudio do FormData
+    // ADICIONADO: Verificação de sessão Supabase
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (!session) {
+      console.error("Erro de sessão Supabase:", sessionError);
+      return NextResponse.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
+    }
+    // FIM ADIÇÃO: Verificação de sessão
+
+    // Extrai o FormData (que contém o arquivo de áudio)
     const formData = await req.formData();
     const file = formData.get("audio") as File | null;
 
@@ -28,47 +41,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Converte o File em Buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // ADICIONADO: Encaminhar o FormData para o backend
+    const backendResponse = await fetch(`${BACKEND_URL}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        // Não definir 'Content-Type', o fetch fará isso automaticamente para FormData
+        'Authorization': `Bearer ${session.access_token}`, // Envia token Supabase
+      },
+      body: formData, // Envia o FormData diretamente
+    });
 
-    // Salva temporariamente o arquivo no servidor
-    const tempFilename = `temp-${uuidv4()}.webm`;
-    const tempFilePath = path.join("/tmp", tempFilename);
-    await fs.writeFile(tempFilePath, buffer);
-
-    try {
-      // Usa o endpoint de transcrição da OpenAI (Whisper)
-      const response = await openai.audio.transcriptions.create({
-        file: createReadStream(tempFilePath) as ReadStream,
-        model: "whisper-1",
-        language: "pt",
-      });
-
-      // Apaga o arquivo temporário
-      await fs.unlink(tempFilePath);
-
-      // Retorna a transcrição para o cliente
-      return NextResponse.json({ transcript: response.text });
-    } catch (error) {
-      // Tenta apagar o arquivo temporário em caso de erro
-      try {
-        await fs.unlink(tempFilePath);
-      } catch (unlinkError) {
-        console.error("Erro ao deletar arquivo temporário:", unlinkError);
-      }
-
-      throw error;
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error("Erro na transcrição:", error);
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}));
+      console.error("Erro do backend na transcrição:", backendResponse.status, errorData);
       return NextResponse.json(
-        { error: error.message || "Erro interno do servidor" },
-        { status: 500 }
+        { error: errorData.detail || 'Erro ao transcrever áudio no servidor' },
+        { status: backendResponse.status }
       );
     }
+
+    const data = await backendResponse.json();
+    // Retorna a resposta do backend (que deve conter a transcrição)
+    return NextResponse.json(data);
+
+  } catch (error) {
+    console.error("Erro interno na rota /api/transcribe:", error);
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
+      { error: "Erro interno do servidor ao processar transcrição" },
       { status: 500 }
     );
   }

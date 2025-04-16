@@ -5,10 +5,12 @@ import { cookies } from "next/headers";
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-const BACKEND_URL = "https://mindfuljung-api-411891972932.us-central1.run.app";
+// Le a URL do backend da variável de ambiente
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL;
 
 if (!BACKEND_URL) {
-  throw new Error("NEXT_PUBLIC_API_URL não está definida!");
+  // Mantém o erro se a variável não estiver definida
+  throw new Error("Variável de ambiente NEXT_PUBLIC_BACKEND_API_URL não está definida!");
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {

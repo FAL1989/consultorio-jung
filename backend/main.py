@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import openai
 from openai import OpenAI
+import io
 
 # Configuração de logging
 logging.basicConfig(
@@ -237,6 +238,52 @@ async def startup_check():
         "status": "online",
         "timestamp": str(datetime.now())
     }
+
+# NOVO ENDPOINT: Transcrição de Áudio
+@app.post("/api/transcribe")
+async def transcribe_audio(
+    audio: UploadFile = File(...), # Recebe o arquivo de áudio como FormData
+    token: str = Depends(verify_auth) # Protege o endpoint com autenticação
+):
+    """Recebe um arquivo de áudio, transcreve usando OpenAI Whisper e retorna o texto."""
+    try:
+        logger.info(f"Recebendo arquivo de áudio para transcrição: {audio.filename}")
+
+        # Lê o conteúdo do arquivo em memória
+        audio_bytes = await audio.read()
+
+        # Prepara o arquivo para a API da OpenAI (necessita de um file-like object com nome)
+        audio_file_for_openai = io.BytesIO(audio_bytes)
+        # A API da OpenAI precisa que o objeto tenha um atributo 'name'
+        setattr(audio_file_for_openai, 'name', audio.filename or 'audio.webm')
+
+        # Chama a API de transcrição da OpenAI
+        transcript_response = await openai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file_for_openai,
+            language="pt",
+            response_format="json" # Pede JSON para facilitar o parse
+        )
+
+        transcription = transcript_response.text
+        logger.info(f"Áudio transcrito com sucesso. Tamanho do texto: {len(transcription)}")
+
+        # Retorna a transcrição
+        return {"transcript": transcription}
+
+    except openai.APIError as e:
+        logger.error(f"Erro da API OpenAI ao transcrever: {e.status_code} - {e.message}", exc_info=True)
+        raise HTTPException(
+            status_code=e.status_code or 500,
+            detail=f"Erro da API OpenAI: {e.message}"
+        )
+    except Exception as e:
+        logger.error(f"Erro inesperado ao transcrever áudio: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno do servidor ao transcrever áudio: {str(e)}"
+        )
+# FIM NOVO ENDPOINT
 
 if __name__ == "__main__":
     import uvicorn
