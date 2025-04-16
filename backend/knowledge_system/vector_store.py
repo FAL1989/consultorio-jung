@@ -72,15 +72,15 @@ class JungianVectorStore:
         self.index.upsert(vectors=vectors)
         return [v['id'] for v in vectors]
     
-    def similarity_search(
+    async def similarity_search(
         self,
         query: str,
         k: int = 4,
         filter: Dict[str, Any] = None
     ) -> List[Document]:
         """Search for similar texts in the vector store."""
-        query_embedding = self.embeddings.embed_query(query)
-        results = self.index.query(
+        query_embedding = await self.embeddings.aembed_query(query)
+        results = await self.index.query(
             vector=query_embedding,
             top_k=k,
             include_metadata=True,

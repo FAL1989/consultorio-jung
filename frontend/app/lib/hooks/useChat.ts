@@ -1,7 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from './useAuth';
+import { apiClient } from '../api';
 import type { Message, Conversation, SupabaseConversation } from '@/types/chat';
 import type { Dispatch, SetStateAction } from 'react';
+import type { AxiosError } from 'axios';
+
+// Configurações de retry e anti-loop
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+let retryCount = 0;
+let lastAuthRedirect = 0;
+
+// Função de backoff exponencial
+const getBackoffDelay = (retry: number) => Math.min(1000 * Math.pow(2, retry), 10000);
 
 interface ChatHookReturn {
   messages: Message[];
@@ -101,9 +112,14 @@ export function useChat(): ChatHookReturn {
 
   const handleSend = useCallback(async (): Promise<void> => {
     if (!currentMessage.trim() || !user) return;
-
     setIsLoading(true);
+    
     try {
+      // Anti-loop check
+      if (Date.now() - lastAuthRedirect < 5000 && retryCount >= MAX_RETRIES) {
+        throw new Error('Detected auth redirect loop. Aborting to prevent infinite cycle.');
+      }
+      
       // Adiciona mensagem do usuário
       const userMessage: Message = {
         id: crypto.randomUUID(),
@@ -113,45 +129,17 @@ export function useChat(): ChatHookReturn {
       };
       setMessages(prev => [...prev, userMessage]);
 
-      // Envia para a API
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: currentMessage,
-          conversationId: currentConversation?.id,
-          userId: user.id,
-        }),
+      console.log("📤 Enviando mensagem para a API...");
+      
+      // Usa o apiClient com retry automático
+      const response = await apiClient.post('/api/chat', {
+        message: currentMessage,
+        conversationId: currentConversation?.id || null,
+        user_id: user.id,
       });
 
-      let errorData;
-      let data;
-      
-      try {
-        const textResponse = await response.text();
-        try {
-          data = JSON.parse(textResponse);
-        } catch (e) {
-          console.error('Erro ao fazer parse da resposta:', textResponse);
-          throw new Error('Erro ao processar resposta do servidor. Por favor, tente novamente.');
-        }
-        
-        if (!response.ok) {
-          errorData = data;
-          if (response.status === 429) {
-            const resetTime = new Date(errorData.resetTime);
-            const waitSeconds = Math.ceil((resetTime.getTime() - Date.now()) / 1000);
-            throw new Error(`${errorData.message} Tente novamente em ${waitSeconds} segundos.`);
-          }
-          throw new Error(errorData.error || 'Falha na comunicação com o servidor');
-        }
-      } catch (error) {
-        // Remove a última mensagem do usuário em caso de erro
-        setMessages(prev => prev.slice(0, -1));
-        throw error;
-      }
+      console.log("✅ Resposta recebida com sucesso");
+      const data = response.data;
 
       // Adiciona resposta do assistente
       const assistantMessage: Message = {
@@ -168,6 +156,7 @@ export function useChat(): ChatHookReturn {
 
       // Se não houver conversa atual, cria uma nova
       if (!currentConversation) {
+        console.log("📝 Criando nova conversa...");
         const { data: newConversation, error } = await supabase
           .from('conversations')
           .insert([
@@ -180,24 +169,26 @@ export function useChat(): ChatHookReturn {
           .single();
 
         if (error) {
+          console.error("❌ Erro ao criar conversa:", error);
           throw error;
         }
 
         if (newConversation) {
-          const supaConv = newConversation as unknown as SupabaseConversation;
           const typedConversation: Conversation = {
-            id: supaConv.id,
-            user_id: supaConv.user_id,
-            messages: supaConv.messages,
-            created_at: new Date(supaConv.created_at),
-            updated_at: new Date(supaConv.updated_at),
+            id: newConversation.id,
+            user_id: newConversation.user_id,
+            messages: newConversation.messages,
+            created_at: new Date(newConversation.created_at),
+            updated_at: new Date(newConversation.updated_at),
           };
           setCurrentConversation(typedConversation);
           setConversations(prev => [typedConversation, ...prev]);
+          console.log("✅ Nova conversa criada com sucesso");
         }
       } else {
         // Atualiza conversa existente
-        const updatedMessages = [...currentConversation.messages, userMessage, assistantMessage];
+        console.log("📝 Atualizando conversa existente...");
+        const updatedMessages = [...messages, userMessage, assistantMessage];
         const { error } = await supabase
           .from('conversations')
           .update({
@@ -207,6 +198,7 @@ export function useChat(): ChatHookReturn {
           .eq('id', currentConversation.id);
 
         if (error) {
+          console.error("❌ Erro ao atualizar conversa:", error);
           throw error;
         }
 
@@ -218,18 +210,47 @@ export function useChat(): ChatHookReturn {
             updated_at: new Date(),
           };
         });
+        console.log("✅ Conversa atualizada com sucesso");
       }
 
       // Limpa mensagem atual
       setCurrentMessage('');
+      // Reset retry count on success
+      retryCount = 0;
+      
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
-      // Mostra erro para o usuário
-      alert(error instanceof Error ? error.message : 'Erro ao enviar mensagem. Tente novamente.');
+      console.error('❌ Erro ao processar mensagem:', error);
+      // Remove a última mensagem do usuário em caso de erro
+      setMessages(prev => prev.slice(0, -1));
+      
+      if (error instanceof Error) {
+        if ((error as AxiosError)?.response?.status === 401 || error.message.includes('Não autorizado')) {
+          retryCount++;
+          lastAuthRedirect = Date.now();
+          if (retryCount < MAX_RETRIES) {
+            console.warn(`🔄 Tentativa de reautenticação ${retryCount}/${MAX_RETRIES}...`);
+            setTimeout(() => {
+              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}&retry=${retryCount}`;
+            }, RETRY_DELAY);
+            return;
+          } else {
+            console.error('🚫 Máximo de tentativas de autenticação atingido.');
+            alert('Não foi possível autenticar após múltiplas tentativas. Por favor, limpe os cookies e tente novamente.');
+          }
+        } else if (error.message.includes('auth redirect loop')) {
+          alert('Detectado um loop de autenticação. Por favor, limpe os cookies e tente novamente.');
+        } else if (error.message.includes('múltiplas tentativas')) {
+          alert('Erro de conexão com o servidor. Por favor, verifique sua internet e tente novamente.');
+        } else {
+          alert(error.message);
+        }
+      } else {
+        alert('Erro ao enviar mensagem. Tente novamente.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [currentMessage, user, supabase, currentConversation]);
+  }, [currentMessage, user, supabase, currentConversation, messages]);
 
   const clearChat = useCallback((): void => {
     setMessages([]);

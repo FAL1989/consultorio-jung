@@ -37,7 +37,7 @@ class JungianKnowledgeBase:
     async def query(self, query: str, max_results: int = 3) -> List[Dict]:
         """Realiza uma busca semântica na base de conhecimento."""
         try:
-            results = self.vector_store.similarity_search(
+            results = await self.vector_store.similarity_search(
                 query=query,
                 k=max_results
             )

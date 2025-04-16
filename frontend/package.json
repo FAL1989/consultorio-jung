@@ -13,6 +13,7 @@
     "@heroicons/react": "^2.1.1",
     "@supabase/auth-helpers-nextjs": "^0.8.7",
     "@supabase/supabase-js": "^2.39.3",
+    "axios": "^1.7.9",
     "date-fns": "^4.1.0",
     "next": "^14.2.24",
     "react": "^18.2.0",
@@ -21,6 +22,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@pinecone-database/pinecone": "^5.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/date-fns": "^2.5.3",
     "@types/node": "^20.17.19",
@@ -33,15 +35,14 @@
     "dotenv": "^16.3.1",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
+    "langchain": "^0.3.15",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.24.7",
     "postcss": "^8.4.33",
     "postcss-import": "^16.1.0",
     "postcss-nesting": "^13.0.1",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3",
-    "@pinecone-database/pinecone": "^5.0.0",
-    "langchain": "^0.3.15",
-    "node-fetch": "^3.3.2",
-    "openai": "^4.24.7"
+    "typescript": "^5.7.3"
   }
 }

@@ -132,7 +132,7 @@ class JungianAnalyst:
         """Explica um conceito junguiano."""
         concept = self.kb.get_concept(concept_name)
         if not concept:
-            similar_docs = self.vector_store.similarity_search(concept_name)
+            similar_docs = await self.vector_store.similarity_search(concept_name)
             context = "\n".join(doc.page_content for doc in similar_docs)
         else:
             context = f"""
@@ -172,7 +172,7 @@ class JungianAnalyst:
         """Fornece orientação terapêutica baseada na psicologia junguiana."""
         if relevant_concepts is None:
             # Busca conceitos relevantes no vector store
-            similar_docs = self.vector_store.similarity_search(situation)
+            similar_docs = await self.vector_store.similarity_search(situation)
             relevant_concepts = [doc.metadata.get('concept') for doc in similar_docs if doc.metadata.get('concept')]
         
         concepts_info = []

@@ -5,50 +5,60 @@ import { cookies } from "next/headers";
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
+const BACKEND_URL = "https://mindfuljung-api-411891972932.us-central1.run.app";
 
 if (!BACKEND_URL) {
-  console.error("NEXT_PUBLIC_API_URL não está definida!");
+  throw new Error("NEXT_PUBLIC_API_URL não está definida!");
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    // Verifica autenticação
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabase.auth.getSession();
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (!session) {
       return NextResponse.json(
-        { error: "Não autorizado" },
+        { 
+          error: "Não autorizado", 
+          debug: {
+            sessionError: sessionError?.message || null,
+            timestamp: new Date().toISOString()
+          }
+        },
         { status: 401 }
       );
     }
 
     // Processa o corpo da requisição
     const body = await req.json();
-    
-    const url = `${BACKEND_URL}/api/chat`;
-    console.log("Fazendo requisição para:", url);
-    
+
     // Encaminha a requisição para o backend
-    const response = await fetch(url, {
+    const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
-        ...body,
+        message: body.message,
+        conversationId: body.conversationId || null,
         user_id: session.user.id,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Erro na resposta do servidor: ${response.status} ${response.statusText}\n${
-          errorData.error || 'Sem detalhes do erro'
-        }`
+      return NextResponse.json(
+        { 
+          error: errorData.error || 'Erro na comunicação com o servidor',
+          debug: {
+            status: response.status,
+            timestamp: new Date().toISOString(),
+            errorDetails: errorData
+          }
+        },
+        { status: response.status }
       );
     }
 
@@ -56,21 +66,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(data);
     
   } catch (error) {
-    console.error("Erro detalhado no processamento do chat:", error);
-    
-    let errorMessage = "Erro interno do servidor";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      // Se for um erro de rede, pode ser problema de CORS ou backend offline
-      if (error.message.includes('fetch failed')) {
-        errorMessage = "Não foi possível conectar ao servidor. Por favor, tente novamente em alguns instantes.";
-      }
-    }
-
     return NextResponse.json(
       { 
-        error: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? error : undefined
+        error: "Erro interno do servidor",
+        debug: {
+          errorMessage: error instanceof Error ? error.message : 'Erro desconhecido',
+          timestamp: new Date().toISOString()
+        }
       },
       { status: 500 }
     );

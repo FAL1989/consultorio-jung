@@ -1,10 +1,6 @@
-"use client";
-
-import { useAuth } from "@/lib/hooks/useAuth";
+import Link from "next/link";
 
 export default function LandingPage(): JSX.Element {
-  const { signIn } = useAuth();
-
   return (
     <div className="min-h-screen relative">
       {/* Background Image */}
@@ -24,12 +20,12 @@ export default function LandingPage(): JSX.Element {
             <p className="text-base text-gray-600 mb-8">
               Uma jornada de autoconhecimento inspirada nos ensinamentos de Carl Gustav Jung
             </p>
-            <button
-              onClick={() => signIn()}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+            <Link 
+              href="/auth/login" 
+              className="inline-flex items-center justify-center px-6 py-3 text-base font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Comece sua Jornada
-            </button>
+            </Link>
           </div>
         </div>
 
