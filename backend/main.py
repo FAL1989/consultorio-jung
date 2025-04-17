@@ -143,10 +143,10 @@ async def chat(request: ChatRequest, user_id: str = Depends(verify_auth)):
             for doc in relevantDocs
         ]
         
-        logger.info(f"Encontrados {len(concepts)} conceitos relevantes")
+        logger.info(f"Encontrados {len(concepts)} conceitos relevantes para a mensagem.")
 
-        # Gera resposta usando GPT-4
-        completion = await openai_client.chat.completions.create(
+        # Gera resposta usando GPT-4 (CHAMADA SÍNCRONA)
+        completion = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[
                 { "role": "system", "content": SYSTEM_PROMPT },
