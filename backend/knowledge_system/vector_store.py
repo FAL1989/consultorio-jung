@@ -4,6 +4,9 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class JungianVectorStore:
     def __init__(self, api_key: str, environment: str, index_name: str = "jung-knowledge"):
@@ -72,25 +75,33 @@ class JungianVectorStore:
         self.index.upsert(vectors=vectors)
         return [v['id'] for v in vectors]
     
-    async def similarity_search(
-        self,
-        query: str,
-        k: int = 4,
-        filter: Dict[str, Any] = None
-    ) -> List[Document]:
-        """Search for similar texts in the vector store."""
-        query_embedding = await self.embeddings.aembed_query(query)
-        results = await self.index.query(
-            vector=query_embedding,
-            top_k=k,
-            include_metadata=True,
-            filter=filter
-        )
-        
-        return [
-            Document(
-                page_content=match['metadata']['text'],
-                metadata={k: v for k, v in match['metadata'].items() if k != 'text'}
+    def similarity_search(self, query: str, k: int = 3, namespace: str = "jungian-concepts") -> List[Document]:
+        """Realiza busca por similaridade no índice Pinecone."""
+        if not self.index:
+            logger.error("Índice Pinecone não inicializado.")
+            raise ValueError("Índice não inicializado")
+
+        try:
+            query_embedding = self.embeddings.embed_query(query)
+            logger.info(f"Embedding gerado para a consulta: {query[:50]}...")
+
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=k,
+                namespace=namespace,
+                include_metadata=True
             )
-            for match in results['matches']
-        ] 
+            logger.info(f"Busca por similaridade retornou {len(results.get('matches', []))} resultados.")
+
+            documents = []
+            if results.get('matches'):
+                for match in results['matches']:
+                    metadata = match.get('metadata', {})
+                    page_content = metadata.pop('text', '')
+                    doc = Document(page_content=page_content, metadata=metadata)
+                    documents.append(doc)
+            return documents
+
+        except Exception as e:
+            logger.error(f"Erro durante a busca por similaridade no Pinecone: {str(e)}", exc_info=True)
+            raise 

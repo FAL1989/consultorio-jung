@@ -127,12 +127,14 @@ async def root():
     return {"status": "online", "service": "F.A.L AI Agency API"}
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, token: str = Depends(verify_auth)):
+async def chat(request: ChatRequest, user_id: str = Depends(verify_auth)):
+    """Endpoint principal para interação com o chatbot."""
     try:
-        logger.info(f"Processando requisição de chat para usuário: {request.user_id}")
-        
-        # Busca conceitos relevantes no vector store
-        relevantDocs = await vector_store.similarity_search(request.message, 3)
+        # O user_id agora vem do token verificado (mais seguro)
+        logger.info(f"Processando requisição de chat para usuário verificado: {user_id}")
+
+        # Busca conceitos relevantes no vector store (CHAMADA SÍNCRONA)
+        relevantDocs = vector_store.similarity_search(request.message, 3) # Removido 'await'
         concepts = [
             {
                 "name": doc.metadata.get("concept_name", "Conceito Junguiano"),
