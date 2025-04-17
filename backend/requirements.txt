@@ -13,7 +13,7 @@ openai>=1.0.0
 tiktoken>=0.3.3  # Tokenização OpenAI
 
 # Banco de Dados Vetorial
-pinecone-client>=2.2.1
+pinecone>=2.2.1
 numpy>=1.21.0  # Necessário para operações vetoriais
 
 # Utilitários
