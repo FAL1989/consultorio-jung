@@ -169,7 +169,8 @@ async def chat(request: ChatRequest, user_id: str = Depends(verify_auth)):
             )
 
         # Busca referências relevantes
-        references = await analyst.get_relevant_references(responseText)
+        # references = await analyst.get_relevant_references(responseText) # Comentado - Método inexistente
+        references = [] # Define como lista vazia para o resto do código funcionar
         logger.info(f"Encontradas {len(references) if references else 0} referências relevantes")
 
         # Prepara resposta enriquecida
