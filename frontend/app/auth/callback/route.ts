@@ -15,8 +15,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (code) {
     try {
       await supabase.auth.exchangeCodeForSession(code);
-      // Tentar garantir que a sessão persista
-      const { data } = await supabase.auth.getSession();
+      // Tentar garantir que a sessão persista (chamada sem desestruturar 'data')
+      await supabase.auth.getSession();
       
       // Redirect COM timestamp para evitar cache
       return NextResponse.redirect(new URL(`/chat?auth_success=${Date.now()}`, req.url));

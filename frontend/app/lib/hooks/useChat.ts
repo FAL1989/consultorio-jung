@@ -11,8 +11,8 @@ const RETRY_DELAY = 1000;
 let retryCount = 0;
 let lastAuthRedirect = 0;
 
-// Função de backoff exponencial
-const getBackoffDelay = (retry: number) => Math.min(1000 * Math.pow(2, retry), 10000);
+// REMOVIDO: Função de backoff exponencial não utilizada neste hook
+// const getBackoffDelay = (retry: number) => Math.min(1000 * Math.pow(2, retry), 10000);
 
 interface ChatHookReturn {
   messages: Message[];
