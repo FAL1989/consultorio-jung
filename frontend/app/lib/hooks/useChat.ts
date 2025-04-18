@@ -1,16 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './useAuth';
-import type { Message, Conversation, SupabaseConversation } from '@/types/chat';
+import type { Message, Conversation, SupabaseConversation, MessageContent } from '@/types/chat';
 import type { Dispatch, SetStateAction } from 'react';
 
-// Configurações de retry e anti-loop
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
-let retryCount = 0;
-let lastAuthRedirect = 0;
-
-// REMOVIDO: Função de backoff exponencial não utilizada neste hook
-// const getBackoffDelay = (retry: number) => Math.min(1000 * Math.pow(2, retry), 10000);
+// --- Define type for metadata event using types from MessageContent ---
+interface MetadataPayload {
+  // Use the inline array types directly from MessageContent definition
+  concepts?: MessageContent['concepts'];
+  references?: MessageContent['references'];
+}
 
 interface ChatHookReturn {
   messages: Message[];
@@ -135,7 +133,6 @@ export function useChat(): ChatHookReturn {
     setMessages(prev => [...prev, assistantPlaceholder]);
 
     try {
-      console.log("📤 Iniciando conexão de stream para /api/chat...");
       const token = session.access_token;
 
       // 3. Use fetch for POST request with stream
@@ -166,12 +163,11 @@ export function useChat(): ChatHookReturn {
       const decoder = new TextDecoder();
       let buffer = '';
       let currentAssistantText = '';
-      let finalMetadata: { concepts: any; references: any } | null = null;
+      let finalMetadata: MetadataPayload | null = null;
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) {
-          console.log("✅ Stream finalizado.");
           break;
         }
 
@@ -195,8 +191,7 @@ export function useChat(): ChatHookReturn {
               const data = JSON.parse(dataJson);
 
               if (eventType === 'metadata') {
-                console.log("📊 Metadados recebidos:", data);
-                finalMetadata = data;
+                finalMetadata = data as MetadataPayload;
                 if (assistantMessageRef.current && typeof assistantMessageRef.current.content === 'object') {
                   assistantMessageRef.current.content.concepts = data.concepts;
                   assistantMessageRef.current.content.references = data.references;
@@ -243,7 +238,6 @@ export function useChat(): ChatHookReturn {
         const messagesToSave = [...messages.filter(m => m.id !== assistantPlaceholder.id), userMessage, finalAssistantMessage];
 
         if (!currentConversation) {
-          console.log("📝 Criando nova conversa no Supabase...");
           const { data: newConvData, error: insertError } = await supabase
             .from('conversations')
             .insert([{ user_id: user.id, messages: messagesToSave }])
@@ -260,11 +254,9 @@ export function useChat(): ChatHookReturn {
               updated_at: new Date(newConvData.updated_at),
             };
             setCurrentConversation(typedConversation);
-            console.log("✅ Nova conversa criada com sucesso no Supabase");
           }
 
         } else {
-          console.log("📝 Atualizando conversa existente no Supabase...");
           const { error: updateError } = await supabase
             .from('conversations')
             .update({ messages: messagesToSave, updated_at: new Date().toISOString() })
@@ -273,10 +265,8 @@ export function useChat(): ChatHookReturn {
           if (updateError) throw updateError;
 
           setCurrentConversation(prev => prev ? { ...prev, messages: messagesToSave, updated_at: new Date() } : null);
-          console.log("✅ Conversa atualizada com sucesso no Supabase");
         }
       } else {
-        console.warn("Stream finalizado, mas metadados não foram recebidos. Conversa não salva no Supabase.");
         setMessages(prev => prev.filter(msg => msg.id !== assistantPlaceholder.id));
       }
       assistantMessageRef.current = null;
