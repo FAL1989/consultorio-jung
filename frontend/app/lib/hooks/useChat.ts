@@ -135,8 +135,15 @@ export function useChat(): ChatHookReturn {
     try {
       const token = session.access_token;
 
+      // --- Use Environment Variable for Backend URL ---
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+      if (!backendUrl) {
+        throw new Error("URL do backend não configurada nas variáveis de ambiente.");
+      }
+      const apiUrl = `${backendUrl}/api/chat`; // Append the specific endpoint
+
       // 3. Use fetch for POST request with stream
-      const response = await fetch('/api/chat', {
+      const response = await fetch(apiUrl, { // Use the constructed API URL
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
