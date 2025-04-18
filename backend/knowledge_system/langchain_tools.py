@@ -193,7 +193,7 @@ class JungianAnalyst:
         try:
             # 1. Buscar contexto inicial (conceitos relevantes)
             # Usamos situation=user_input para buscar conceitos gerais sobre a mensagem
-            similar_docs = await self.vector_store.similarity_search(user_input, k=3)
+            similar_docs = self.vector_store.similarity_search(user_input, k=3)
             relevant_concepts_list = [doc.metadata.get('concept') for doc in similar_docs if doc.metadata.get('concept')]
 
             concepts_info = []
