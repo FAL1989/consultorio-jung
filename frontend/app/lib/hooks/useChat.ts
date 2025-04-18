@@ -165,6 +165,7 @@ export function useChat(): ChatHookReturn {
       let currentAssistantText = '';
       let finalMetadata: MetadataPayload | null = null;
 
+      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) {
