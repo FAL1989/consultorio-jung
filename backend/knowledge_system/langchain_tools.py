@@ -8,6 +8,22 @@ from langchain.memory import ConversationBufferWindowMemory
 from .knowledge_base import JungianKnowledgeBase
 from .vector_store import JungianVectorStore
 
+# --- Adicionar o novo prompt aqui (ou importar de forma mais elegante depois) ---
+SYSTEM_PROMPT_CONVERSATIONAL = """Você é Carl Gustav Jung. Responda diretamente ao seu interlocutor, mantendo sua voz e perspectiva únicas.
+Para saudações ('Olá', 'Oi', etc.) ou perguntas muito curtas e triviais, responda de forma cordial e pensativa, talvez com uma observação sucinta ou uma pergunta gentil que convide à reflexão, mas sem iniciar uma análise profunda não solicitada.
+Se a pergunta for mais substancial ou solicitar explicitamente uma exploração de conceitos, utilize seu conhecimento analítico.
+
+Considere o histórico da conversa para manter a continuidade.
+
+Histórico da conversa:
+{chat_history}
+
+Interlocutor diz: {user_input}
+
+Sua resposta (como C.G. Jung):
+"""
+# --- Fim do novo prompt ---
+
 class JungianAnalyst:
     def __init__(
         self,
@@ -17,13 +33,15 @@ class JungianAnalyst:
     ):
         self.kb = knowledge_base
         self.vector_store = vector_store
-        self.llm = ChatOpenAI(model_name=model_name)
+        self.llm = ChatOpenAI(model_name=model_name, temperature=0.7) # Ajuste temp se necessário
         self.memory = ConversationBufferWindowMemory(k=5, return_messages=True, memory_key="chat_history", input_key="input")
         
         # Inicializa as chains específicas
         self.concept_explanation_chain = self._create_concept_chain()
         self.archetype_analysis_chain = self._create_archetype_chain()
         self.therapeutic_guidance_chain = self._create_therapeutic_chain()
+        # --- Inicializar a nova chain conversacional ---
+        self.conversational_chain = self._create_conversational_chain()
     
     def _load_memory(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         memory_variables = self.memory.load_memory_variables({"input": input_data.get("input", "")})
@@ -147,6 +165,26 @@ class JungianAnalyst:
         )
         return chain
     
+    # --- Adicionar método para criar a chain conversacional ---
+    def _create_conversational_chain(self):
+        """Cria uma chain para respostas conversacionais como Jung."""
+        prompt = PromptTemplate(
+            input_variables=["user_input", "chat_history", "input"], # Adiciona "input" para memória
+            template=SYSTEM_PROMPT_CONVERSATIONAL
+        )
+
+        chain = (
+            RunnablePassthrough.assign(
+                # Carrega chat_history da memória. A chave "input" é necessária pela memória.
+                chat_history=lambda x: self.memory.load_memory_variables(x)["chat_history"]
+            )
+            | prompt
+            | self.llm
+            | StrOutputParser()
+        )
+        return chain
+    # --- Fim do novo método ---
+    
     async def explain_concept(self, concept_name: str, user_input: str) -> str:
         """Explica um conceito junguiano."""
         concept = self.kb.get_concept(concept_name)
@@ -184,58 +222,72 @@ class JungianAnalyst:
         return response
     
     async def generate_response_stream(self, user_input: str) -> AsyncGenerator[str, None]:
-        """Gera uma resposta terapêutica em streaming e envia metadados no final."""
+        """Gera uma resposta em streaming, escolhendo a chain apropriada."""
         full_response_text = ""
-        relevant_concepts_list = []
         references = [] # Placeholder for references, logic TBD
         concepts_metadata = [] # To store metadata for final event
 
+        # --- Lógica para decidir qual chain usar ---
+        is_simple_input = False
+        normalized_input = user_input.lower().strip()
+        greetings = ["olá", "oi", "tudo bem", "bom dia", "boa tarde", "boa noite"]
+        # Critério: menos de 8 palavras OU contém saudação
+        if len(normalized_input.split()) < 8 or any(greet in normalized_input for greet in greetings):
+            is_simple_input = True
+        # --- Fim da lógica de decisão ---
+
         try:
-            # 1. Buscar contexto inicial (conceitos relevantes)
-            # Usamos situation=user_input para buscar conceitos gerais sobre a mensagem
-            similar_docs = self.vector_store.similarity_search(user_input, k=3)
-            relevant_concepts_list = [doc.metadata.get('concept') for doc in similar_docs if doc.metadata.get('concept')]
+            if is_simple_input:
+                # --- Usar Chain Conversacional --- 
+                chain_to_use = self.conversational_chain
+                chain_input = {"user_input": user_input, "input": user_input} # Input simples para chain conv.
+                
+                # Para inputs simples, não buscamos concepts/references inicialmente
+                relevant_concepts_list = [] 
+                concepts_info = []
 
-            concepts_info = []
-            for concept_name in relevant_concepts_list or []:
-                concept = self.kb.get_concept(concept_name)
-                if concept:
-                    concepts_info.append(f"{concept_name}: {concept.description}")
-                    # Store for metadata event
-                    concepts_metadata.append({
-                        "name": concept_name,
-                        "description": concept.description[:150] + "..."
-                    })
+            else:
+                # --- Usar Chain Terapêutica (como antes) ---
+                chain_to_use = self.therapeutic_guidance_chain
+                # 1. Buscar contexto inicial (conceitos relevantes)
+                similar_docs = self.vector_store.similarity_search(user_input, k=3)
+                relevant_concepts_list = [doc.metadata.get('concept') for doc in similar_docs if doc.metadata.get('concept')]
+                concepts_info = []
+                for concept_name in relevant_concepts_list or []:
+                    concept = self.kb.get_concept(concept_name)
+                    if concept:
+                        concepts_info.append(f"{concept_name}: {concept.description}")
+                        concepts_metadata.append({
+                            "name": concept_name,
+                            "description": concept.description[:150] + "..."
+                        })
+                techniques = self.kb.get_therapeutic_techniques()
+                # 2. Preparar input para a chain terapêutica
+                chain_input = {
+                    "situation": user_input,
+                    "relevant_concepts": "\n".join(concepts_info),
+                    "available_techniques": "\n".join(techniques),
+                    "input": user_input
+                }
+            # --- Fim da seleção da Chain ---
 
-            techniques = self.kb.get_therapeutic_techniques()
-
-            # 2. Preparar input para a chain
-            chain_input = {
-                "situation": user_input,
-                "relevant_concepts": "\n".join(concepts_info),
-                "available_techniques": "\n".join(techniques),
-                "input": user_input # Para carregar/salvar memória
-            }
-
-            # 3. Iterar sobre o stream da LLM usando .astream()
-            async for chunk in self.therapeutic_guidance_chain.astream(chain_input):
-                # chunk é uma string (devido ao StrOutputParser)
+            # 3. Iterar sobre o stream da LLM usando a chain selecionada
+            async for chunk in chain_to_use.astream(chain_input):
                 if chunk:
                     full_response_text += chunk
-                    # Yield text chunk as SSE data event - Corrected formatting
                     sse_event = f"data: {json.dumps({'text': chunk})}\n\n"
                     yield sse_event
 
             # 4. Após o stream, fazer yield do evento de metadados
-            #    (Aqui usamos os concepts_metadata que coletamos antes)
-            #    A lógica de references ainda precisa ser definida se necessário
+            #    Se foi input simples, os metadados estarão vazios.
             metadata = {
-                "concepts": concepts_metadata,
+                "concepts": concepts_metadata, # Será vazio se is_simple_input for True
                 "references": references
             }
             yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
 
             # 5. Salvar contexto na memória APÓS stream completo
+            # Usamos user_input e a resposta completa (independente da chain)
             self.memory.save_context({"input": user_input}, {"output": full_response_text})
 
         except Exception as e:
