@@ -1,9 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './useAuth';
-import { apiClient } from '../api';
 import type { Message, Conversation, SupabaseConversation } from '@/types/chat';
 import type { Dispatch, SetStateAction } from 'react';
-import type { AxiosError } from 'axios';
 
 // Configurações de retry e anti-loop
 const MAX_RETRIES = 3;
@@ -29,12 +27,13 @@ interface ChatHookReturn {
 }
 
 export function useChat(): ChatHookReturn {
-  const { user, supabase } = useAuth();
+  const { user, supabase, session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const assistantMessageRef = useRef<Message | null>(null);
 
   // Carrega conversas do usuário e configura subscription
   useEffect(() => {
@@ -111,146 +110,186 @@ export function useChat(): ChatHookReturn {
   }, [user, supabase, currentConversation]);
 
   const handleSend = useCallback(async (): Promise<void> => {
-    if (!currentMessage.trim() || !user) return;
+    if (!currentMessage.trim() || !user || !session) return;
     setIsLoading(true);
-    
-    try {
-      // Anti-loop check
-      if (Date.now() - lastAuthRedirect < 5000 && retryCount >= MAX_RETRIES) {
-        throw new Error('Detected auth redirect loop. Aborting to prevent infinite cycle.');
-      }
-      
-      // Adiciona mensagem do usuário
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        content: currentMessage,
-        role: 'user',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, userMessage]);
+    const messageToSend = currentMessage;
+    setCurrentMessage('');
 
-      console.log("📤 Enviando mensagem para a API...");
-      
-      // Usa o apiClient com retry automático
-      const response = await apiClient.post('/api/chat', {
-        message: currentMessage,
-        conversationId: currentConversation?.id || null,
-        user_id: user.id,
+    // 1. Add user message to state
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      content: messageToSend,
+      role: 'user',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    // 2. Add placeholder for assistant message
+    const assistantPlaceholder: Message = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: { text: '...', concepts: undefined, references: undefined },
+      timestamp: new Date(),
+    };
+    assistantMessageRef.current = assistantPlaceholder;
+    setMessages(prev => [...prev, assistantPlaceholder]);
+
+    try {
+      console.log("📤 Iniciando conexão de stream para /api/chat...");
+      const token = session.access_token;
+
+      // 3. Use fetch for POST request with stream
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: messageToSend,
+          conversationId: currentConversation?.id || null,
+          user_id: user.id,
+        }),
       });
 
-      console.log("✅ Resposta recebida com sucesso");
-      const data = response.data;
-
-      // Adiciona resposta do assistente
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        content: {
-          text: data.response.text,
-          concepts: data.response.concepts,
-          references: data.response.references
-        },
-        role: 'assistant',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-
-      // Se não houver conversa atual, cria uma nova
-      if (!currentConversation) {
-        console.log("📝 Criando nova conversa...");
-        const { data: newConversation, error } = await supabase
-          .from('conversations')
-          .insert([
-            {
-              user_id: user.id,
-              messages: [userMessage, assistantMessage],
-            },
-          ])
-          .select()
-          .single();
-
-        if (error) {
-          console.error("❌ Erro ao criar conversa:", error);
-          throw error;
-        }
-
-        if (newConversation) {
-          const typedConversation: Conversation = {
-            id: newConversation.id,
-            user_id: newConversation.user_id,
-            messages: newConversation.messages,
-            created_at: new Date(newConversation.created_at),
-            updated_at: new Date(newConversation.updated_at),
-          };
-          setCurrentConversation(typedConversation);
-          setConversations(prev => [typedConversation, ...prev]);
-          console.log("✅ Nova conversa criada com sucesso");
-        }
-      } else {
-        // Atualiza conversa existente
-        console.log("📝 Atualizando conversa existente...");
-        const updatedMessages = [...messages, userMessage, assistantMessage];
-        const { error } = await supabase
-          .from('conversations')
-          .update({
-            messages: updatedMessages,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentConversation.id);
-
-        if (error) {
-          console.error("❌ Erro ao atualizar conversa:", error);
-          throw error;
-        }
-
-        setCurrentConversation(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            messages: updatedMessages,
-            updated_at: new Date(),
-          };
-        });
-        console.log("✅ Conversa atualizada com sucesso");
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Erro na API: ${response.status} - ${errorBody || response.statusText}`);
       }
 
-      // Limpa mensagem atual
-      setCurrentMessage('');
-      // Reset retry count on success
-      retryCount = 0;
-      
-    } catch (error) {
-      console.error('❌ Erro ao processar mensagem:', error);
-      // Remove a última mensagem do usuário em caso de erro
-      setMessages(prev => prev.slice(0, -1));
-      
-      if (error instanceof Error) {
-        if ((error as AxiosError)?.response?.status === 401 || error.message.includes('Não autorizado')) {
-          retryCount++;
-          lastAuthRedirect = Date.now();
-          if (retryCount < MAX_RETRIES) {
-            console.warn(`🔄 Tentativa de reautenticação ${retryCount}/${MAX_RETRIES}...`);
-            setTimeout(() => {
-              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}&retry=${retryCount}`;
-            }, RETRY_DELAY);
-            return;
-          } else {
-            console.error('🚫 Máximo de tentativas de autenticação atingido.');
-            alert('Não foi possível autenticar após múltiplas tentativas. Por favor, limpe os cookies e tente novamente.');
+      if (!response.body) {
+        throw new Error('ReadableStream não disponível na resposta.');
+      }
+
+      // 4. Process the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentAssistantText = '';
+      let finalMetadata: { concepts: any; references: any } | null = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          console.log("✅ Stream finalizado.");
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let eventType = 'message';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventType = line.substring(6).trim();
+            continue;
           }
-        } else if (error.message.includes('auth redirect loop')) {
-          alert('Detectado um loop de autenticação. Por favor, limpe os cookies e tente novamente.');
-        } else if (error.message.includes('múltiplas tentativas')) {
-          alert('Erro de conexão com o servidor. Por favor, verifique sua internet e tente novamente.');
+
+          if (line.startsWith('data:')) {
+            const dataJson = line.substring(5).trim();
+            if (!dataJson) continue;
+
+            try {
+              const data = JSON.parse(dataJson);
+
+              if (eventType === 'metadata') {
+                console.log("📊 Metadados recebidos:", data);
+                finalMetadata = data;
+                if (assistantMessageRef.current && typeof assistantMessageRef.current.content === 'object') {
+                  assistantMessageRef.current.content.concepts = data.concepts;
+                  assistantMessageRef.current.content.references = data.references;
+                }
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id === assistantPlaceholder.id && typeof msg.content === 'object') {
+                    return { ...msg, content: { ...msg.content, concepts: data.concepts, references: data.references } };
+                  }
+                  return msg;
+                }));
+
+              } else if (eventType === 'error') {
+                console.error("❌ Erro recebido via stream:", data.error);
+                throw new Error(data.error || 'Erro no processamento do backend');
+              } else {
+                currentAssistantText += data.text;
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id === assistantPlaceholder.id && typeof msg.content === 'object') {
+                    return { ...msg, content: { ...msg.content, text: currentAssistantText } };
+                  }
+                  return msg;
+                }));
+              }
+
+            } catch (e) {
+              console.error('Erro ao parsear JSON do SSE:', e, 'Linha:', line);
+            }
+            eventType = 'message';
+          }
+        }
+      }
+      reader.releaseLock();
+
+      // 5. Update Supabase *after* stream completion and metadata received
+      if (finalMetadata && assistantMessageRef.current) {
+        const finalAssistantMessage: Message = {
+          ...assistantMessageRef.current,
+          content: {
+            text: currentAssistantText,
+            concepts: finalMetadata.concepts,
+            references: finalMetadata.references,
+          }
+        };
+        const messagesToSave = [...messages.filter(m => m.id !== assistantPlaceholder.id), userMessage, finalAssistantMessage];
+
+        if (!currentConversation) {
+          console.log("📝 Criando nova conversa no Supabase...");
+          const { data: newConvData, error: insertError } = await supabase
+            .from('conversations')
+            .insert([{ user_id: user.id, messages: messagesToSave }])
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          if (newConvData) {
+            const typedConversation: Conversation = {
+              id: newConvData.id,
+              user_id: newConvData.user_id,
+              messages: newConvData.messages,
+              created_at: new Date(newConvData.created_at),
+              updated_at: new Date(newConvData.updated_at),
+            };
+            setCurrentConversation(typedConversation);
+            console.log("✅ Nova conversa criada com sucesso no Supabase");
+          }
+
         } else {
-          alert(error.message);
+          console.log("📝 Atualizando conversa existente no Supabase...");
+          const { error: updateError } = await supabase
+            .from('conversations')
+            .update({ messages: messagesToSave, updated_at: new Date().toISOString() })
+            .eq('id', currentConversation.id);
+
+          if (updateError) throw updateError;
+
+          setCurrentConversation(prev => prev ? { ...prev, messages: messagesToSave, updated_at: new Date() } : null);
+          console.log("✅ Conversa atualizada com sucesso no Supabase");
         }
       } else {
-        alert('Erro ao enviar mensagem. Tente novamente.');
+        console.warn("Stream finalizado, mas metadados não foram recebidos. Conversa não salva no Supabase.");
+        setMessages(prev => prev.filter(msg => msg.id !== assistantPlaceholder.id));
       }
+      assistantMessageRef.current = null;
+
+    } catch (error) {
+      console.error('❌ Erro ao processar mensagem via stream:', error);
+      alert(error instanceof Error ? error.message : 'Ocorreu um erro desconhecido');
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id && msg.id !== assistantPlaceholder.id));
+      assistantMessageRef.current = null;
     } finally {
       setIsLoading(false);
     }
-  }, [currentMessage, user, supabase, currentConversation, messages]);
+  }, [currentMessage, user, supabase, session, currentConversation, messages]);
 
   const clearChat = useCallback((): void => {
     setMessages([]);
