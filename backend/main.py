@@ -12,6 +12,8 @@ from datetime import datetime
 import openai
 from openai import OpenAI
 import io
+from starlette.responses import StreamingResponse
+import json
 
 # Configuração de logging
 logging.basicConfig(
@@ -113,10 +115,6 @@ class ChatRequest(BaseModel):
     conversationId: Optional[str]
     user_id: str
 
-class ChatResponse(BaseModel):
-    response: Dict[str, Any]
-    usage: Dict[str, int]
-
 async def verify_auth(authorization: str = Header(...)) -> str:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token inválido")
@@ -126,75 +124,28 @@ async def verify_auth(authorization: str = Header(...)) -> str:
 async def root():
     return {"status": "online", "service": "F.A.L AI Agency API"}
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, user_id: str = Depends(verify_auth)):
-    """Endpoint principal para interação com o chatbot."""
+@app.post("/api/chat")
+async def chat_stream(request: ChatRequest, user_id: str = Depends(verify_auth)):
+    """Endpoint principal para interação com o chatbot via streaming SSE."""
     try:
-        # O user_id agora vem do token verificado (mais seguro)
-        logger.info(f"Processando requisição de chat para usuário verificado: {user_id}")
+        logger.info(f"Iniciando stream de chat para usuário verificado: {user_id}")
 
-        # Busca conceitos relevantes no vector store (CHAMADA SÍNCRONA)
-        relevantDocs = vector_store.similarity_search(request.message, 3) # Removido 'await'
-        concepts = [
-            {
-                "name": doc.metadata.get("concept_name", "Conceito Junguiano"),
-                "description": doc.page_content[:200] + "..."
-            }
-            for doc in relevantDocs
-        ]
-        
-        logger.info(f"Encontrados {len(concepts)} conceitos relevantes para a mensagem.")
+        # Chama o método gerador do analyst
+        stream_generator = analyst.generate_response_stream(request.message)
 
-        # Gera resposta usando GPT-4 (CHAMADA SÍNCRONA)
-        completion = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                { "role": "system", "content": SYSTEM_PROMPT },
-                { "role": "user", "content": request.message }
-            ],
-            temperature=0.7,
-            max_tokens=2000,
-            top_p=0.9,
-            frequency_penalty=0.5,
-            presence_penalty=0.5,
-        )
-
-        responseText = completion.choices[0].message.content
-
-        if not responseText:
-            logger.error("GPT-4 retornou uma resposta vazia")
-            raise HTTPException(
-                status_code=500,
-                detail="Não foi possível gerar uma resposta"
-            )
-
-        # Busca referências relevantes
-        # references = await analyst.get_relevant_references(responseText) # Comentado - Método inexistente
-        references = [] # Define como lista vazia para o resto do código funcionar
-        logger.info(f"Encontradas {len(references) if references else 0} referências relevantes")
-
-        # Prepara resposta enriquecida
-        response = ChatResponse(
-            response={
-                "text": responseText,
-                "concepts": concepts if concepts else None,
-                "references": references if references else None
-            },
-            usage={
-                "prompt_tokens": completion.usage.prompt_tokens,
-                "completion_tokens": completion.usage.completion_tokens,
-                "total_tokens": completion.usage.total_tokens,
-            }
-        )
-
-        logger.info(f"Resposta gerada com sucesso. Tokens totais: {completion.usage.total_tokens}")
-        return response
+        # Retorna a StreamingResponse
+        return StreamingResponse(stream_generator, media_type="text/event-stream")
 
     except Exception as e:
-        logger.error(f"Erro ao processar chat: {str(e)}", exc_info=True)
+        # Se um erro ocorrer ANTES do stream iniciar (e.g., na inicialização do analyst),
+        # loga e levanta um HTTP Exception padrão.
+        # Erros DURANTE o stream serão tratados dentro do generate_response_stream (enviando evento SSE de erro).
+        logger.error(f"Erro crítico ao iniciar stream de chat: {str(e)}", exc_info=True)
+        # Não podemos retornar StreamingResponse aqui, então levantamos 500.
+        # O frontend precisará tratar isso (onerror do EventSource talvez?).
         raise HTTPException(
             status_code=500,
-            detail=f"Erro ao processar chat: {str(e)}"
+            detail=f"Erro ao iniciar stream de chat: {str(e)}"
         )
 
 @app.post("/api/query", response_model=List[ConceptResponse])
