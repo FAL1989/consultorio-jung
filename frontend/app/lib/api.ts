@@ -2,7 +2,7 @@ import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'ax
 
 // Configuração robusta com retries e timeout estendido
 export const apiClient = axios.create({
-  timeout: 10000, // 10s
+  timeout: 60000, // 60s (Increased from 10s)
   headers: {
     'Content-Type': 'application/json',
   }
